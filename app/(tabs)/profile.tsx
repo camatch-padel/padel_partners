@@ -1,11 +1,19 @@
 import { supabase } from '@/constants/supabase';
+import type { Court } from '@/types/match';
 import Avatar from '@/components/Avatar';
+import LevelPyramid from '@/components/LevelPyramid';
+import Logo from '@/components/Logo';
+import { useProfile } from '@/contexts/ProfileContext';
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,15 +21,19 @@ import {
   TextInput,
   View
 } from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
 
 export default function ProfileScreen() {
+  const { setHasProfile } = useProfile();
   const [profile, setProfile] = useState<any>(null);
   const [username, setUsername] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [city, setCity] = useState('');
-  const [level, setLevel] = useState('');
+  const [level, setLevel] = useState(5.0);
+  const [courtId, setCourtId] = useState<string | null>(null);
+  const [courts, setCourts] = useState<Court[]>([]);
+  const [clubSearch, setClubSearch] = useState('');
+  const [showClubPicker, setShowClubPicker] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -47,10 +59,18 @@ export default function ProfileScreen() {
           setFirstName(data.firstname || '');
           setLastName(data.lastname || '');
           setCity(data.city || '');
-          setLevel(data.declared_level?.toString() || '');
+          setLevel(data.declared_level || 5.0);
+          setCourtId(data.court_id || null);
           setAvatarUrl(data.avatar_url || null);
         }
       }
+
+      // Charger les clubs
+      const { data: courtsData } = await supabase
+        .from('courts')
+        .select('*')
+        .order('city');
+      if (courtsData) setCourts(courtsData);
     } catch (error) {
       console.log('Pas de profil existant');
     } finally {
@@ -145,16 +165,12 @@ export default function ProfileScreen() {
   };
 
   const handleCreateOrUpdate = async () => {
-    if (!username || !firstName || !lastName || !city || !level) {
+    if (!username || !firstName || !lastName || !city) {
       Alert.alert('Erreur', 'Tous les champs sont obligatoires');
       return;
     }
 
-    const levelNum = parseFloat(level);
-    if (isNaN(levelNum) || levelNum < 1 || levelNum > 10) {
-      Alert.alert('Erreur', 'Le niveau doit être entre 1 et 10');
-      return;
-    }
+    const levelNum = level;
 
     setCreating(true);
 
@@ -178,6 +194,7 @@ export default function ProfileScreen() {
             lastname: lastName,
             city,
             declared_level: levelNum,
+            court_id: courtId,
           })
           .eq('id', session.user.id);
 
@@ -199,14 +216,17 @@ export default function ProfileScreen() {
           community_level: levelNum,
           community_level_votes: 0,
           match_played: 0,
+          court_id: courtId,
         });
 
         if (error) {
           Alert.alert('Erreur', error.message);
         } else {
-          // Rediriger directement vers l'accueil après création
           await loadProfile();
-          router.replace('/(tabs)');
+          setHasProfile(true);
+          Alert.alert('Succès', 'Profil créé avec succès !', [
+            { text: 'OK', onPress: () => router.replace('/(tabs)') }
+          ]);
         }
       }
     } catch (e: any) {
@@ -228,122 +248,227 @@ export default function ProfileScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color="#0066FF" />
+        <ActivityIndicator size="large" color="#D4AF37" />
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      {/* Titre ou Logo */}
-      {profile ? (
-        <Text style={styles.title}>Mon Profil</Text>
-      ) : (
-        <View style={styles.logoContainer}>
-          <Svg width="45" height="60" viewBox="0 0 45 60" fill="none">
-            <Path
-              d="M22.5 0C10.08 0 0 10.08 0 22.5C0 35.625 22.5 60 22.5 60C22.5 60 45 35.625 45 22.5C45 10.08 34.92 0 22.5 0Z"
-              fill="#0066FF"
-            />
-            <Circle cx="22.5" cy="22.5" r="10" fill="white"/>
-            <Circle cx="22.5" cy="22.5" r="6" fill="#00D9C0"/>
-          </Svg>
-          <Text style={styles.logoText}>Linkerra</Text>
-        </View>
-      )}
-
-      {/* Avatar Section */}
-      <View style={styles.avatarSection}>
-        <Avatar
-          imageUrl={avatarUrl}
-          firstName={firstName}
-          lastName={lastName}
-          size={120}
-        />
-        <Pressable
-          style={styles.changePhotoButton}
-          onPress={pickImage}
-          disabled={uploadingImage}
+    <ImageBackground
+      source={require('@/assets/images/piste-noire.png')}
+      style={styles.container}
+      resizeMode="cover"
+    >
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.contentContainer}
+          keyboardShouldPersistTaps="handled"
         >
-          {uploadingImage ? (
-            <ActivityIndicator size="small" color="white" />
-          ) : (
-            <Text style={styles.changePhotoText}>
-              {avatarUrl ? 'Changer la photo' : 'Ajouter une photo'}
-            </Text>
-          )}
-        </Pressable>
-      </View>
-
-      {/* Form */}
-      <View style={styles.form}>
-        <Text style={styles.label}>Prénom *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ex: Jean"
-          placeholderTextColor="#999"
-          value={firstName}
-          onChangeText={setFirstName}
-        />
-
-        <Text style={styles.label}>Nom *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ex: Dupont"
-          placeholderTextColor="#999"
-          value={lastName}
-          onChangeText={setLastName}
-        />
-
-        <Text style={styles.label}>Pseudo *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ex: Padel Pro"
-          placeholderTextColor="#999"
-          value={username}
-          onChangeText={setUsername}
-        />
-
-        <Text style={styles.label}>Ville *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ex: Paris"
-          placeholderTextColor="#999"
-          value={city}
-          onChangeText={setCity}
-        />
-
-        <Text style={styles.label}>Niveau (1 à 10) *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ex: 5"
-          placeholderTextColor="#999"
-          value={level}
-          onChangeText={setLevel}
-          keyboardType="decimal-pad"
-        />
-
-        <Pressable
-          style={[styles.saveButton, creating && styles.saveButtonDisabled]}
-          onPress={handleCreateOrUpdate}
-          disabled={creating}
-        >
-          {creating ? (
-            <ActivityIndicator size="small" color="white" />
-          ) : (
-            <Text style={styles.saveButtonText}>
-              {profile ? 'Mettre à jour' : 'Créer mon profil'}
-            </Text>
-          )}
-        </Pressable>
-
-        {profile && (
-          <Pressable style={styles.logoutButton} onPress={handleLogout}>
-            <Text style={styles.logoutButtonText}>Se déconnecter</Text>
-          </Pressable>
+        {/* Titre ou Logo */}
+        {profile ? (
+          <Text style={styles.title}>Mon Profil</Text>
+        ) : (
+          <View style={styles.logoContainer}>
+            <Logo size="medium" showText={true} />
+          </View>
         )}
-      </View>
-    </ScrollView>
+
+        {/* Avatar Section */}
+        <View style={styles.avatarSection}>
+          <Avatar
+            imageUrl={avatarUrl}
+            firstName={firstName}
+            lastName={lastName}
+            size={120}
+          />
+          <Pressable
+            style={styles.changePhotoButton}
+            onPress={pickImage}
+            disabled={uploadingImage}
+          >
+            {uploadingImage ? (
+              <ActivityIndicator size="small" color="#000000" />
+            ) : (
+              <Text style={styles.changePhotoText}>
+                {avatarUrl ? 'Changer la photo' : 'Ajouter une photo'}
+              </Text>
+            )}
+          </Pressable>
+        </View>
+
+        {/* Form */}
+        <View style={styles.form}>
+          <Text style={styles.label}>Prénom *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Ex: Jean"
+            placeholderTextColor="#666666"
+            value={firstName}
+            onChangeText={setFirstName}
+          />
+
+          <Text style={styles.label}>Nom *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Ex: Dupont"
+            placeholderTextColor="#666666"
+            value={lastName}
+            onChangeText={setLastName}
+          />
+
+          <Text style={styles.label}>Pseudo *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Ex: Padel Pro"
+            placeholderTextColor="#666666"
+            value={username}
+            onChangeText={setUsername}
+          />
+
+          <Text style={styles.label}>Ville *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Ex: Paris"
+            placeholderTextColor="#666666"
+            value={city}
+            onChangeText={setCity}
+          />
+
+          <Text style={styles.label}>Club (optionnel)</Text>
+          {courtId ? (
+            <View style={styles.selectedClub}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.selectedClubName}>
+                  {courts.find(c => c.id === courtId)?.name || 'Club sélectionné'}
+                </Text>
+                <Text style={styles.selectedClubCity}>
+                  {courts.find(c => c.id === courtId)?.city || ''}
+                </Text>
+              </View>
+              <Pressable onPress={() => setShowClubPicker(!showClubPicker)}>
+                <Ionicons name="swap-horizontal" size={20} color="#D4AF37" />
+              </Pressable>
+              <Pressable onPress={() => { setCourtId(null); setShowClubPicker(false); }}>
+                <Ionicons name="close-circle" size={20} color="#FF4444" />
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable
+              style={styles.clubPickerToggle}
+              onPress={() => setShowClubPicker(!showClubPicker)}
+            >
+              <Ionicons name="business-outline" size={20} color="#D4AF37" />
+              <Text style={styles.clubPickerToggleText}>
+                {showClubPicker ? 'Masquer la liste' : 'Choisir un club'}
+              </Text>
+            </Pressable>
+          )}
+
+          {showClubPicker && (() => {
+            const searchLower = clubSearch.toLowerCase();
+            const filteredCourts = clubSearch.trim()
+              ? courts.filter(c =>
+                  c.name.toLowerCase().includes(searchLower) ||
+                  c.city.toLowerCase().includes(searchLower)
+                )
+              : courts;
+
+            return (
+              <View style={styles.clubPickerContainer}>
+                <View style={styles.clubSearchContainer}>
+                  <Ionicons name="search" size={20} color="#D4AF37" />
+                  <TextInput
+                    style={styles.clubSearchInput}
+                    placeholder="Rechercher par nom ou ville..."
+                    placeholderTextColor="#666666"
+                    value={clubSearch}
+                    onChangeText={setClubSearch}
+                    autoCapitalize="none"
+                  />
+                  {clubSearch.length > 0 && (
+                    <Pressable onPress={() => setClubSearch('')}>
+                      <Ionicons name="close-circle" size={20} color="#666666" />
+                    </Pressable>
+                  )}
+                </View>
+
+                <View style={styles.clubList}>
+                  {filteredCourts.slice(0, 20).map((court) => (
+                    <Pressable
+                      key={court.id}
+                      style={[
+                        styles.clubItem,
+                        courtId === court.id && styles.clubItemSelected
+                      ]}
+                      onPress={() => {
+                        setCourtId(court.id);
+                        setShowClubPicker(false);
+                        setClubSearch('');
+                      }}
+                    >
+                      <Text style={[
+                        styles.clubItemName,
+                        courtId === court.id && styles.clubItemTextSelected
+                      ]}>
+                        {court.name}
+                      </Text>
+                      <Text style={[
+                        styles.clubItemCity,
+                        courtId === court.id && styles.clubItemTextSelected
+                      ]}>
+                        {court.city}
+                      </Text>
+                    </Pressable>
+                  ))}
+
+                  {filteredCourts.length > 20 && (
+                    <Text style={styles.clubMoreText}>
+                      +{filteredCourts.length - 20} clubs — affinez votre recherche
+                    </Text>
+                  )}
+
+                  {filteredCourts.length === 0 && clubSearch.trim() && (
+                    <Text style={styles.clubMoreText}>
+                      Aucun club trouvé pour "{clubSearch}"
+                    </Text>
+                  )}
+                </View>
+              </View>
+            );
+          })()}
+
+          <Text style={styles.label}>Niveau (1 à 10) *</Text>
+          <LevelPyramid value={level} onChange={setLevel} />
+
+          <Pressable
+            style={[styles.saveButton, creating && styles.saveButtonDisabled]}
+            onPress={handleCreateOrUpdate}
+            disabled={creating}
+          >
+            {creating ? (
+              <ActivityIndicator size="small" color="#000000" />
+            ) : (
+              <Text style={styles.saveButtonText}>
+                {profile ? 'Mettre à jour' : 'Créer mon profil'}
+              </Text>
+            )}
+          </Pressable>
+
+          {profile && (
+            <Pressable style={styles.logoutButton} onPress={handleLogout}>
+              <Ionicons name="log-out-outline" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
+              <Text style={styles.logoutButtonText}>Se déconnecter</Text>
+            </Pressable>
+          )}
+        </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </ImageBackground>
   );
 }
 
@@ -359,7 +484,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: 'white',
+    color: '#D4AF37',
     textAlign: 'center',
     marginBottom: 30,
   },
@@ -371,7 +496,7 @@ const styles = StyleSheet.create({
   logoText: {
     fontSize: 32,
     fontWeight: '700',
-    color: 'white',
+    color: '#FFFFFF',
     letterSpacing: 1,
   },
   avatarSection: {
@@ -382,13 +507,13 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingVertical: 10,
     paddingHorizontal: 20,
-    backgroundColor: '#0066FF',
+    backgroundColor: '#D4AF37',
     borderRadius: 20,
     minWidth: 150,
     alignItems: 'center',
   },
   changePhotoText: {
-    color: 'white',
+    color: '#000000',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -398,39 +523,40 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'white',
+    color: '#AAAAAA',
     marginBottom: 8,
   },
   input: {
     width: '100%',
     height: 50,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 2,
+    borderColor: '#D4AF37',
     borderRadius: 12,
     paddingHorizontal: 16,
     marginBottom: 20,
     fontSize: 16,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    color: 'white',
+    backgroundColor: '#1A1A1A',
+    color: '#FFFFFF',
   },
   saveButton: {
     width: '100%',
     height: 50,
-    backgroundColor: '#0066FF',
+    backgroundColor: '#D4AF37',
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 10,
   },
   saveButtonDisabled: {
-    opacity: 0.5,
+    backgroundColor: '#666666',
   },
   saveButtonText: {
-    color: 'white',
+    color: '#000000',
     fontSize: 18,
     fontWeight: '700',
   },
   logoutButton: {
+    flexDirection: 'row',
     width: '100%',
     height: 50,
     backgroundColor: 'transparent',
@@ -439,11 +565,103 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 20,
     borderWidth: 2,
-    borderColor: '#FF4444',
+    borderColor: '#D4AF37',
   },
   logoutButtonText: {
-    color: '#FF4444',
+    color: '#D4AF37',
     fontSize: 16,
     fontWeight: '600',
   },
+  selectedClub: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1A1A1A',
+    borderWidth: 2,
+    borderColor: '#D4AF37',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 20,
+    gap: 12,
+  },
+  selectedClubName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  selectedClubCity: {
+    fontSize: 14,
+    color: '#AAAAAA',
+    marginTop: 2,
+  },
+  clubPickerToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#1A1A1A',
+    borderWidth: 2,
+    borderColor: '#D4AF37',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 20,
+  },
+  clubPickerToggleText: {
+    fontSize: 16,
+    color: '#D4AF37',
+  },
+  clubPickerContainer: {
+    marginBottom: 20,
+  },
+  clubSearchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1A1A1A',
+    borderWidth: 2,
+    borderColor: '#D4AF37',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+    marginBottom: 12,
+  },
+  clubSearchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#FFFFFF',
+  },
+  clubList: {
+    maxHeight: 250,
+  },
+  clubItem: {
+    padding: 14,
+    backgroundColor: '#1A1A1A',
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: '#D4AF37',
+  },
+  clubItemSelected: {
+    backgroundColor: '#D4AF37',
+    borderColor: '#D4AF37',
+  },
+  clubItemName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  clubItemCity: {
+    fontSize: 14,
+    color: '#AAAAAA',
+  },
+  clubItemTextSelected: {
+    color: '#000000',
+  },
+  clubMoreText: {
+    fontSize: 14,
+    color: '#AAAAAA',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 8,
+  },
 });
+

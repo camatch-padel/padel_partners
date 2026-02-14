@@ -1,9 +1,14 @@
 import { supabase } from '@/constants/supabase';
-import { DAYS_OF_WEEK, DURATIONS, FORMATS, MONTHS, STEP_TITLES, TIME_SLOTS, VISIBILITY_OPTIONS } from '@/constants/match-constants';
-import LevelPyramid from '@/components/LevelPyramid';
-import type { Court, Group, MatchFormData } from '@/types/match';
+import { DAYS_OF_WEEK, MONTHS, TIME_SLOTS, VISIBILITY_OPTIONS } from '@/constants/match-constants';
+import {
+  AGE_CATEGORIES,
+  EVENT_TYPES,
+  PLAYER_POSITIONS,
+  TOURNAMENT_CATEGORIES,
+} from '@/constants/tournament-constants';
+import type { Court, Group } from '@/types/match';
+import type { TournamentFormData } from '@/types/tournament';
 import { Ionicons } from '@expo/vector-icons';
-import Slider from '@react-native-community/slider';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -12,73 +17,86 @@ import {
   Alert,
   Dimensions,
   ImageBackground,
+  Keyboard,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  View
+  View,
 } from 'react-native';
 
 const { width } = Dimensions.get('window');
+const CREATE_TOURNAMENT_STEP_TITLES = [
+  'Date',
+  'Heure',
+  'Club',
+  'Catégorie',
+  "Type d'épreuve",
+  "Catégorie d'âge",
+  'Classement minimum',
+  'Position',
+  'Visibilité',
+  'Récapitulatif',
+];
 
-export default function CreateMatchModal() {
-  // État du formulaire
-  const [formData, setFormData] = useState<MatchFormData>({
+export default function CreateTournamentModal() {
+  const [formData, setFormData] = useState<TournamentFormData>({
     date: new Date(),
     timeSlot: '',
-    duration: 90, // 1h30 par défaut
-    format: 4, // 4 joueurs par défaut
-    levelMin: 3.0, // Niveau minimum par défaut
-    levelMax: 10.0, // Toujours 10
+    category: 'P100',
+    eventType: 'Mixte',
+    ageCategory: 'Senior',
+    minRanking: 0,
+    playerPosition: 'Peu importe',
     clubId: null,
     visibility: 'tous',
     groupId: null,
   });
 
-  // État de navigation
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  // Données chargées depuis Supabase
   const [courts, setCourts] = useState<Court[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [loadingData, setLoadingData] = useState(true);
-
-  // État pour le DatePicker
   const [showDatePicker, setShowDatePicker] = useState(false);
-
-  // Recherche de clubs
   const [clubSearch, setClubSearch] = useState('');
+  const [rankingText, setRankingText] = useState('0');
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
-  // Charger les clubs et groupes au montage
   useEffect(() => {
     loadInitialData();
   }, []);
 
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   const loadInitialData = async () => {
     try {
-      // Charger les clubs
       const { data: courtsData } = await supabase
         .from('courts')
         .select('*')
         .order('city');
-
       if (courtsData) setCourts(courtsData);
 
-      // Charger les groupes dont l'utilisateur est membre
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        // D'abord récupérer les IDs des groupes dont l'utilisateur est membre
         const { data: memberData } = await supabase
           .from('group_members')
           .select('group_id')
           .eq('user_id', session.user.id);
 
-        // Ensuite charger les groupes si l'utilisateur est membre de groupes
         if (memberData && memberData.length > 0) {
-          const groupIds = memberData.map(m => m.group_id);
+          const groupIds = memberData.map((m: any) => m.group_id);
           const { data: groupsData } = await supabase
             .from('groups')
             .select('*')
@@ -94,10 +112,10 @@ export default function CreateMatchModal() {
     }
   };
 
-  // Navigation entre étapes
   const goToNextStep = () => {
+    Keyboard.dismiss();
     if (!validateCurrentStep()) return;
-    if (currentStep < STEP_TITLES.length - 1) {
+    if (currentStep < CREATE_TOURNAMENT_STEP_TITLES.length - 1) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -108,10 +126,9 @@ export default function CreateMatchModal() {
     }
   };
 
-  // Validation de l'étape courante
   const validateCurrentStep = (): boolean => {
     switch (currentStep) {
-      case 0: // Date
+      case 0: {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         if (formData.date < today) {
@@ -119,74 +136,76 @@ export default function CreateMatchModal() {
           return false;
         }
         return true;
-
-      case 1: // Heure
-        if (!formData.timeSlot) {
-          Alert.alert('Erreur', 'Veuillez sélectionner un créneau horaire');
+      }
+      case 2: {
+        if (!formData.clubId) {
+          Alert.alert('Erreur', 'Veuillez sélectionner un club');
           return false;
         }
         return true;
-
-      case 6: // Visibilité
+      }
+      case 6: {
+        if (formData.minRanking < 0 || formData.minRanking > 999999) {
+          Alert.alert('Erreur', 'Le classement doit être entre 0 et 999999');
+          return false;
+        }
+        return true;
+      }
+      case 8: {
         if (formData.visibility === 'private' && !formData.groupId) {
           Alert.alert('Erreur', 'Veuillez sélectionner un groupe privé');
           return false;
         }
         return true;
-
+      }
       default:
         return true;
     }
   };
 
-  // Soumission du formulaire
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      // 1. Récupérer la session utilisateur
+      if (!formData.clubId) {
+        throw new Error('Veuillez sélectionner un club');
+      }
+      if (formData.visibility === 'private' && !formData.groupId) {
+        throw new Error('Veuillez sélectionner un groupe privé');
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Non authentifié');
 
-      // 2. Insérer la partie dans la table matches
-      const { data: match, error: matchError } = await supabase
-        .from('matches')
+      const { error } = await supabase
+        .from('tournaments')
         .insert({
           creator_id: session.user.id,
           date: formData.date.toISOString().split('T')[0],
-          time_slot: formData.timeSlot,
-          duration_minutes: formData.duration,
-          format: formData.format,
-          level_min: formData.levelMin,
-          level_max: formData.levelMax,
+          time_slot: formData.timeSlot || null,
+          category: formData.category,
+          event_type: formData.eventType,
+          age_category: formData.ageCategory,
+          min_ranking: formData.minRanking,
+          player_position: formData.playerPosition,
           court_id: formData.clubId,
           visibility: formData.visibility,
           group_id: formData.groupId,
-          status: 'open',
-        })
-        .select()
-        .single();
+          status: 'searching',
+        });
 
-      if (matchError) throw matchError;
+      if (error) throw error;
 
-      // 3. Ajouter le créateur comme premier participant
-      await supabase.from('match_participants').insert({
-        match_id: match.id,
-        user_id: session.user.id,
-      });
-
-      // 4. Succès : afficher message et retour home
-      Alert.alert('Succès', 'Votre partie a été créée !', [
-        { text: 'OK', onPress: () => router.replace('/(tabs)') }
+      Alert.alert('Succès', 'Votre recherche de partenaire a été créée !', [
+        { text: 'OK', onPress: () => router.replace('/(tabs)') },
       ]);
     } catch (error: any) {
-      console.error('Erreur création partie:', error);
-      Alert.alert('Erreur', error.message || 'Impossible de créer la partie');
+      console.error('Erreur création tournoi:', error);
+      Alert.alert('Erreur', error.message || 'Impossible de créer la recherche');
     } finally {
       setLoading(false);
     }
   };
 
-  // Formater la date pour l'affichage
   const formatDate = (date: Date): string => {
     const dayName = DAYS_OF_WEEK[date.getDay()];
     const day = date.getDate();
@@ -197,10 +216,9 @@ export default function CreateMatchModal() {
 
   // ================== ÉTAPES DU FORMULAIRE ==================
 
-  // Étape 0 : Sélection de la date
   const renderStepDate = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Choisissez la date de la partie</Text>
+      <Text style={styles.stepTitle}>Date du tournoi</Text>
 
       {Platform.OS === 'ios' ? (
         <View style={styles.calendarContainer}>
@@ -251,10 +269,31 @@ export default function CreateMatchModal() {
     </View>
   );
 
-  // Étape 1 : Sélection de l'heure
   const renderStepTime = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Choisissez l'heure</Text>
+      <Text style={styles.stepTitle}>Heure (optionnelle)</Text>
+
+      <Pressable
+        style={[
+          styles.noTimeButton,
+          formData.timeSlot === '' && styles.noTimeButtonSelected,
+        ]}
+        onPress={() => setFormData({ ...formData, timeSlot: '' })}
+      >
+        <Ionicons
+          name="time-outline"
+          size={24}
+          color={formData.timeSlot === '' ? '#000000' : '#D4AF37'}
+        />
+        <Text
+          style={[
+            styles.noTimeText,
+            formData.timeSlot === '' && styles.noTimeTextSelected,
+          ]}
+        >
+          Pas d'heure précise
+        </Text>
+      </Pressable>
 
       <ScrollView style={styles.timeGrid} contentContainerStyle={styles.timeGridContent}>
         {TIME_SLOTS.map((slot) => (
@@ -262,14 +301,16 @@ export default function CreateMatchModal() {
             key={slot}
             style={[
               styles.timeSlot,
-              formData.timeSlot === slot && styles.timeSlotSelected
+              formData.timeSlot === slot && styles.timeSlotSelected,
             ]}
             onPress={() => setFormData({ ...formData, timeSlot: slot })}
           >
-            <Text style={[
-              styles.timeSlotText,
-              formData.timeSlot === slot && styles.timeSlotTextSelected
-            ]}>
+            <Text
+              style={[
+                styles.timeSlotText,
+                formData.timeSlot === slot && styles.timeSlotTextSelected,
+              ]}
+            >
               {slot}
             </Text>
           </Pressable>
@@ -278,103 +319,19 @@ export default function CreateMatchModal() {
     </View>
   );
 
-  // Étape 2 : Durée
-  const renderStepDuration = () => {
-    const durationIndex = DURATIONS.findIndex(d => d.value === formData.duration);
-
-    return (
-      <View style={styles.stepContainer}>
-        <Text style={styles.stepTitle}>Durée de la partie</Text>
-
-        <View style={styles.sliderContainer}>
-          <Text style={styles.sliderValue}>
-            {DURATIONS.find(d => d.value === formData.duration)?.label || '1h30'}
-          </Text>
-
-          <Slider
-            style={styles.slider}
-            minimumValue={0}
-            maximumValue={2}
-            step={1}
-            value={durationIndex}
-            onValueChange={(value) => {
-              setFormData({ ...formData, duration: DURATIONS[value].value });
-            }}
-            minimumTrackTintColor="#D4AF37"
-            maximumTrackTintColor="#666666"
-            thumbTintColor="#D4AF37"
-          />
-
-          <View style={styles.sliderLabels}>
-            {DURATIONS.map((duration) => (
-              <Text key={duration.value} style={styles.sliderLabel}>
-                {duration.label}
-              </Text>
-            ))}
-          </View>
-        </View>
-      </View>
-    );
-  };
-
-  // Étape 3 : Format (2 ou 4 joueurs)
-  const renderStepFormat = () => (
-    <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Format de la partie</Text>
-
-      <View style={styles.formatContainer}>
-        {FORMATS.map((format) => (
-          <Pressable
-            key={format.value}
-            style={[
-              styles.formatButton,
-              formData.format === format.value && styles.formatButtonSelected
-            ]}
-            onPress={() => setFormData({ ...formData, format: format.value as 2 | 4 })}
-          >
-            <Ionicons
-              name="people"
-              size={40}
-              color={formData.format === format.value ? '#000000' : '#D4AF37'}
-              style={{ marginBottom: 12 }}
-            />
-            <Text style={[
-              styles.formatText,
-              formData.format === format.value && styles.formatTextSelected
-            ]}>
-              {format.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-    </View>
-  );
-
-  // Étape 4 : Niveau minimum requis (triangle vertical)
-  const renderStepLevel = () => (
-    <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Niveau minimum</Text>
-      <Text style={styles.levelHelpText}>Indiquez le niveau minimum souhaité pour votre partie</Text>
-      <LevelPyramid
-        value={formData.levelMin}
-        onChange={(value) => setFormData({ ...formData, levelMin: value, levelMax: 10 })}
-      />
-    </View>
-  );
-
-  // Étape 5 : Club (optionnel)
   const renderStepClub = () => {
     const searchLower = clubSearch.toLowerCase();
     const filteredCourts = clubSearch.trim()
-      ? courts.filter(c =>
-          c.name.toLowerCase().includes(searchLower) ||
-          c.city.toLowerCase().includes(searchLower)
+      ? courts.filter(
+          (c) =>
+            c.name.toLowerCase().includes(searchLower) ||
+            c.city.toLowerCase().includes(searchLower)
         )
       : courts;
 
     return (
       <View style={styles.stepContainer}>
-        <Text style={styles.stepTitle}>Club (optionnel)</Text>
+        <Text style={styles.stepTitle}>Club du tournoi *</Text>
 
         <View style={styles.clubSearchContainer}>
           <Ionicons name="search" size={20} color="#D4AF37" />
@@ -385,6 +342,9 @@ export default function CreateMatchModal() {
             value={clubSearch}
             onChangeText={setClubSearch}
             autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="off"
+            importantForAutofill="no"
           />
           {clubSearch.length > 0 && (
             <Pressable onPress={() => setClubSearch('')}>
@@ -396,48 +356,45 @@ export default function CreateMatchModal() {
         {loadingData ? (
           <ActivityIndicator size="large" color="#D4AF37" />
         ) : (
-          <ScrollView style={styles.clubList}>
-            <Pressable
-              style={[
-                styles.clubItem,
-                formData.clubId === null && styles.clubItemSelected
-              ]}
-              onPress={() => setFormData({ ...formData, clubId: null })}
-            >
-              <Text style={[
-                styles.clubItemText,
-                formData.clubId === null && styles.clubItemTextSelected
-              ]}>
-                Aucun club spécifié
-              </Text>
-            </Pressable>
+          <ScrollView
+            style={styles.clubList}
+            contentContainerStyle={styles.clubListContent}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+          >
 
             {filteredCourts.map((court) => (
               <Pressable
                 key={court.id}
                 style={[
                   styles.clubItem,
-                  formData.clubId === court.id && styles.clubItemSelected
+                  formData.clubId === court.id && styles.clubItemSelected,
                 ]}
                 onPress={() => setFormData({ ...formData, clubId: court.id })}
               >
-                <Text style={[
-                  styles.clubItemName,
-                  formData.clubId === court.id && styles.clubItemTextSelected
-                ]}>
+                <Text
+                  style={[
+                    styles.clubItemName,
+                    formData.clubId === court.id && styles.clubItemTextSelected,
+                  ]}
+                >
                   {court.name}
                 </Text>
-                <Text style={[
-                  styles.clubItemCity,
-                  formData.clubId === court.id && styles.clubItemTextSelected
-                ]}>
+                <Text
+                  style={[
+                    styles.clubItemCity,
+                    formData.clubId === court.id && styles.clubItemTextSelected,
+                  ]}
+                >
                   {court.city}
                 </Text>
               </Pressable>
             ))}
 
             {filteredCourts.length === 0 && clubSearch.trim() && (
-              <Text style={styles.noClubText}>Aucun club trouvé pour "{clubSearch}"</Text>
+              <Text style={styles.noClubText}>
+                Aucun club trouvé pour "{clubSearch}"
+              </Text>
             )}
           </ScrollView>
         )}
@@ -445,7 +402,175 @@ export default function CreateMatchModal() {
     );
   };
 
-  // Étape 6 : Visibilité
+  const renderStepCategory = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>Catégorie du tournoi</Text>
+
+      <View style={styles.optionsGrid}>
+        {TOURNAMENT_CATEGORIES.map((cat) => (
+          <Pressable
+            key={cat.value}
+            style={[
+              styles.optionButton,
+              formData.category === cat.value && styles.optionButtonSelected,
+            ]}
+            onPress={() => setFormData({ ...formData, category: cat.value })}
+          >
+            <Text
+              style={[
+                styles.optionText,
+                formData.category === cat.value && styles.optionTextSelected,
+              ]}
+            >
+              {cat.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+
+  const renderStepEventType = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>Type d'épreuve</Text>
+
+      <View style={styles.optionsRow}>
+        {EVENT_TYPES.map((type) => (
+          <Pressable
+            key={type.value}
+            style={[
+              styles.optionButtonLarge,
+              formData.eventType === type.value && styles.optionButtonSelected,
+            ]}
+            onPress={() => setFormData({ ...formData, eventType: type.value })}
+          >
+            <Ionicons
+              name={
+                type.value === 'Mixte'
+                  ? 'people'
+                  : type.value === 'Femme'
+                  ? 'woman'
+                  : 'man'
+              }
+              size={32}
+              color={formData.eventType === type.value ? '#000000' : '#D4AF37'}
+              style={{ marginBottom: 8 }}
+            />
+            <Text
+              style={[
+                styles.optionText,
+                formData.eventType === type.value && styles.optionTextSelected,
+              ]}
+            >
+              {type.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+
+  const renderStepAgeCategory = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>Catégorie d'âge</Text>
+
+      <View style={styles.optionsGrid}>
+        {AGE_CATEGORIES.map((age) => (
+          <Pressable
+            key={age.value}
+            style={[
+              styles.optionButton,
+              formData.ageCategory === age.value && styles.optionButtonSelected,
+            ]}
+            onPress={() => setFormData({ ...formData, ageCategory: age.value })}
+          >
+            <Text
+              style={[
+                styles.optionText,
+                formData.ageCategory === age.value && styles.optionTextSelected,
+              ]}
+            >
+              {age.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+
+  const renderStepRanking = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>Classement minimum</Text>
+      <Text style={styles.rankingHelp}>
+        Indiquez le classement minimum souhaité pour votre partenaire (0 = pas de minimum)
+      </Text>
+
+      <View style={styles.rankingInputContainer}>
+        <TextInput
+          style={styles.rankingInput}
+          value={rankingText}
+          onChangeText={(text) => {
+            const cleaned = text.replace(/[^0-9]/g, '');
+            setRankingText(cleaned);
+            const num = parseInt(cleaned) || 0;
+            setFormData({ ...formData, minRanking: Math.min(num, 999999) });
+          }}
+          keyboardType="number-pad"
+          returnKeyType="done"
+          blurOnSubmit
+          onSubmitEditing={goToNextStep}
+          maxLength={6}
+          placeholder="0"
+          placeholderTextColor="#666666"
+        />
+      </View>
+
+      <Text style={styles.rankingDisplay}>
+        Classement minimum : {formData.minRanking}
+      </Text>
+    </View>
+  );
+
+  const renderStepPosition = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>Position du joueur recherché</Text>
+
+      <View style={styles.optionsRow}>
+        {PLAYER_POSITIONS.map((pos) => (
+          <Pressable
+            key={pos.value}
+            style={[
+              styles.optionButtonLarge,
+              formData.playerPosition === pos.value && styles.optionButtonSelected,
+            ]}
+            onPress={() => setFormData({ ...formData, playerPosition: pos.value })}
+          >
+            <Ionicons
+              name={
+                pos.value === 'Droite'
+                  ? 'arrow-forward-circle'
+                  : pos.value === 'Gauche'
+                  ? 'arrow-back-circle'
+                  : 'swap-horizontal'
+              }
+              size={32}
+              color={formData.playerPosition === pos.value ? '#000000' : '#D4AF37'}
+              style={{ marginBottom: 8 }}
+            />
+            <Text
+              style={[
+                styles.optionText,
+                formData.playerPosition === pos.value && styles.optionTextSelected,
+              ]}
+            >
+              {pos.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+
   const renderStepVisibility = () => (
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>Visibilité</Text>
@@ -456,15 +581,15 @@ export default function CreateMatchModal() {
             key={option.value}
             style={[
               styles.visibilityButton,
-              formData.visibility === option.value && styles.visibilityButtonSelected
+              formData.visibility === option.value && styles.visibilityButtonSelected,
             ]}
-            onPress={() => {
+            onPress={() =>
               setFormData({
                 ...formData,
                 visibility: option.value as 'tous' | 'private',
-                groupId: option.value === 'tous' ? null : formData.groupId
-              });
-            }}
+                groupId: option.value === 'tous' ? null : formData.groupId,
+              })
+            }
           >
             <Ionicons
               name={option.value === 'tous' ? 'earth' : 'lock-closed'}
@@ -472,10 +597,12 @@ export default function CreateMatchModal() {
               color={formData.visibility === option.value ? '#000000' : '#D4AF37'}
               style={{ marginBottom: 8 }}
             />
-            <Text style={[
-              styles.visibilityText,
-              formData.visibility === option.value && styles.visibilityTextSelected
-            ]}>
+            <Text
+              style={[
+                styles.visibilityText,
+                formData.visibility === option.value && styles.visibilityTextSelected,
+              ]}
+            >
               {option.label}
             </Text>
           </Pressable>
@@ -485,13 +612,10 @@ export default function CreateMatchModal() {
       {formData.visibility === 'private' && (
         <View style={styles.groupSelectionContainer}>
           <Text style={styles.groupSelectionTitle}>Sélectionnez un groupe :</Text>
-
           {loadingData ? (
             <ActivityIndicator size="small" color="#D4AF37" />
           ) : groups.length === 0 ? (
-            <Text style={styles.noGroupText}>
-              Vous n'êtes membre d'aucun groupe privé
-            </Text>
+            <Text style={styles.noGroupText}>Vous n'êtes membre d'aucun groupe privé</Text>
           ) : (
             <ScrollView style={styles.groupList}>
               {groups.map((group) => (
@@ -499,14 +623,16 @@ export default function CreateMatchModal() {
                   key={group.id}
                   style={[
                     styles.groupItem,
-                    formData.groupId === group.id && styles.groupItemSelected
+                    formData.groupId === group.id && styles.groupItemSelected,
                   ]}
                   onPress={() => setFormData({ ...formData, groupId: group.id })}
                 >
-                  <Text style={[
-                    styles.groupItemText,
-                    formData.groupId === group.id && styles.groupItemTextSelected
-                  ]}>
+                  <Text
+                    style={[
+                      styles.groupItemText,
+                      formData.groupId === group.id && styles.groupItemTextSelected,
+                    ]}
+                  >
                     {group.name}
                   </Text>
                 </Pressable>
@@ -518,11 +644,9 @@ export default function CreateMatchModal() {
     </View>
   );
 
-  // Étape 7 : Récapitulatif
   const renderStepRecap = () => {
-    const selectedCourt = courts.find(c => c.id === formData.clubId);
-    const selectedGroup = groups.find(g => g.id === formData.groupId);
-    const duration = DURATIONS.find(d => d.value === formData.duration);
+    const selectedCourt = courts.find((c) => c.id === formData.clubId);
+    const selectedGroup = groups.find((g) => g.id === formData.groupId);
 
     return (
       <View style={styles.stepContainer}>
@@ -542,31 +666,9 @@ export default function CreateMatchModal() {
               <Ionicons name="time" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
               <Text style={styles.recapLabel}>Heure</Text>
             </View>
-            <Text style={styles.recapValue}>{formData.timeSlot}</Text>
-          </View>
-
-          <View style={styles.recapItem}>
-            <View style={styles.recapLabelContainer}>
-              <Ionicons name="timer" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
-              <Text style={styles.recapLabel}>Durée</Text>
-            </View>
-            <Text style={styles.recapValue}>{duration?.label}</Text>
-          </View>
-
-          <View style={styles.recapItem}>
-            <View style={styles.recapLabelContainer}>
-              <Ionicons name="people" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
-              <Text style={styles.recapLabel}>Format</Text>
-            </View>
-            <Text style={styles.recapValue}>{formData.format} joueurs</Text>
-          </View>
-
-          <View style={styles.recapItem}>
-            <View style={styles.recapLabelContainer}>
-              <Ionicons name="star" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
-              <Text style={styles.recapLabel}>Niveau requis</Text>
-            </View>
-            <Text style={styles.recapValue}>{formData.levelMin.toFixed(1)} - 10.0</Text>
+            <Text style={styles.recapValue}>
+              {formData.timeSlot || 'Non précisée'}
+            </Text>
           </View>
 
           <View style={styles.recapItem}>
@@ -575,8 +677,50 @@ export default function CreateMatchModal() {
               <Text style={styles.recapLabel}>Club</Text>
             </View>
             <Text style={styles.recapValue}>
-              {selectedCourt ? `${selectedCourt.name} - ${selectedCourt.city}` : 'Non spécifié'}
+              {selectedCourt
+                ? `${selectedCourt.name} - ${selectedCourt.city}`
+                : 'Non spécifié'}
             </Text>
+          </View>
+
+          <View style={styles.recapItem}>
+            <View style={styles.recapLabelContainer}>
+              <Ionicons name="trophy" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
+              <Text style={styles.recapLabel}>Catégorie</Text>
+            </View>
+            <Text style={styles.recapValue}>{formData.category}</Text>
+          </View>
+
+          <View style={styles.recapItem}>
+            <View style={styles.recapLabelContainer}>
+              <Ionicons name="people" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
+              <Text style={styles.recapLabel}>Type</Text>
+            </View>
+            <Text style={styles.recapValue}>{formData.eventType}</Text>
+          </View>
+
+          <View style={styles.recapItem}>
+            <View style={styles.recapLabelContainer}>
+              <Ionicons name="person" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
+              <Text style={styles.recapLabel}>Âge</Text>
+            </View>
+            <Text style={styles.recapValue}>{formData.ageCategory}</Text>
+          </View>
+
+          <View style={styles.recapItem}>
+            <View style={styles.recapLabelContainer}>
+              <Ionicons name="podium" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
+              <Text style={styles.recapLabel}>Classement min.</Text>
+            </View>
+            <Text style={styles.recapValue}>{formData.minRanking}</Text>
+          </View>
+
+          <View style={styles.recapItem}>
+            <View style={styles.recapLabelContainer}>
+              <Ionicons name="hand-left" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
+              <Text style={styles.recapLabel}>Position</Text>
+            </View>
+            <Text style={styles.recapValue}>{formData.playerPosition}</Text>
           </View>
 
           <View style={styles.recapItem}>
@@ -602,24 +746,25 @@ export default function CreateMatchModal() {
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.createButtonText}>Créer la partie</Text>
+            <Text style={styles.createButtonText}>Créer la recherche</Text>
           )}
         </Pressable>
       </View>
     );
   };
 
-  // Rendu de l'étape courante
   const renderCurrentStep = () => {
     switch (currentStep) {
       case 0: return renderStepDate();
       case 1: return renderStepTime();
-      case 2: return renderStepDuration();
-      case 3: return renderStepFormat();
-      case 4: return renderStepLevel();
-      case 5: return renderStepClub();
-      case 6: return renderStepVisibility();
-      case 7: return renderStepRecap();
+      case 2: return renderStepClub();
+      case 3: return renderStepCategory();
+      case 4: return renderStepEventType();
+      case 5: return renderStepAgeCategory();
+      case 6: return renderStepRanking();
+      case 7: return renderStepPosition();
+      case 8: return renderStepVisibility();
+      case 9: return renderStepRecap();
       default: return null;
     }
   };
@@ -630,32 +775,41 @@ export default function CreateMatchModal() {
       style={styles.container}
       resizeMode="cover"
     >
-      {/* Header */}
+    <KeyboardAvoidingView
+      style={styles.keyboardContainer}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.closeButton}>
           <Ionicons name="close" size={28} color="#D4AF37" />
         </Pressable>
-        <Text style={styles.headerTitle}>Créer une partie</Text>
+        <Text style={styles.headerTitle}>Rechercher un partenaire</Text>
         <View style={{ width: 40 }} />
       </View>
 
-      {/* Indicateur de progression */}
       <View style={styles.progressContainer}>
         <Text style={styles.progressText}>
-          Étape {currentStep + 1}/{STEP_TITLES.length} - {STEP_TITLES[currentStep]}
+          Étape {currentStep + 1}/{CREATE_TOURNAMENT_STEP_TITLES.length} -{' '}
+          {CREATE_TOURNAMENT_STEP_TITLES[currentStep]}
         </Text>
         <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${((currentStep + 1) / STEP_TITLES.length) * 100}%` }]} />
+          <View
+            style={[
+              styles.progressFill,
+              {
+                width: `${
+                  ((currentStep + 1) / CREATE_TOURNAMENT_STEP_TITLES.length) * 100
+                }%`,
+              },
+            ]}
+          />
         </View>
       </View>
 
-      {/* Contenu de l'étape */}
-      <View style={styles.content}>
-        {renderCurrentStep()}
-      </View>
+      <View style={styles.content}>{renderCurrentStep()}</View>
 
-      {/* Footer avec boutons de navigation */}
-      {currentStep < 7 && (
+      {currentStep < 9 && !(currentStep === 2 && keyboardVisible) && (
         <View style={styles.footer}>
           {currentStep > 0 && (
             <Pressable style={styles.footerButton} onPress={goToPreviousStep}>
@@ -675,6 +829,7 @@ export default function CreateMatchModal() {
           </Pressable>
         </View>
       )}
+    </KeyboardAvoidingView>
     </ImageBackground>
   );
 }
@@ -684,8 +839,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000000',
   },
-
-  // Header
+  keyboardContainer: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -702,21 +858,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeButtonText: {
-    fontSize: 24,
-    color: '#D4AF37',
-  },
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: '#D4AF37',
   },
-
-  // Progress
   progressContainer: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    marginBottom: 50,
+    marginBottom: 24,
   },
   progressText: {
     fontSize: 14,
@@ -733,8 +883,6 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#D4AF37',
   },
-
-  // Content
   content: {
     flex: 1,
     paddingHorizontal: 20,
@@ -749,7 +897,7 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
 
-  // Date step
+  // Date
   dateButton: {
     backgroundColor: '#1A1A1A',
     borderRadius: 16,
@@ -759,9 +907,6 @@ const styles = StyleSheet.create({
     gap: 16,
     borderWidth: 2,
     borderColor: '#D4AF37',
-  },
-  dateButtonIcon: {
-    fontSize: 32,
   },
   dateButtonText: {
     fontSize: 18,
@@ -795,7 +940,29 @@ const styles = StyleSheet.create({
     color: '#D4AF37',
   },
 
-  // Time step
+  // Time
+  noTimeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    backgroundColor: '#1A1A1A',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#D4AF37',
+    marginBottom: 16,
+  },
+  noTimeButtonSelected: {
+    backgroundColor: '#D4AF37',
+  },
+  noTimeText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  noTimeTextSelected: {
+    color: '#000000',
+  },
   timeGrid: {
     flex: 1,
   },
@@ -826,127 +993,7 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
 
-  // Slider steps
-  sliderContainer: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  levelLabel: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 12,
-  },
-  sliderValue: {
-    fontSize: 48,
-    fontWeight: '700',
-    color: '#D4AF37',
-    marginBottom: 40,
-  },
-  slider: {
-    width: width - 80,
-    height: 40,
-  },
-  sliderLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: width - 80,
-    marginTop: 16,
-  },
-  sliderLabel: {
-    fontSize: 14,
-    color: '#AAAAAA',
-  },
-
-  // Level
-  levelHelpText: {
-    fontSize: 14,
-    color: '#AAAAAA',
-    marginBottom: 20,
-  },
-
-  // Range slider
-  rangeValueContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 40,
-    gap: 20,
-  },
-  rangeValueBox: {
-    alignItems: 'center',
-  },
-  rangeValueLabel: {
-    fontSize: 14,
-    color: '#AAAAAA',
-    marginBottom: 8,
-  },
-  rangeValue: {
-    fontSize: 36,
-    fontWeight: '700',
-    color: '#D4AF37',
-  },
-  rangeValueSeparator: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#666666',
-  },
-  rangeSlider: {
-    width: width - 80,
-    height: 40,
-  },
-  thumb: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#D4AF37',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-  rail: {
-    flex: 1,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#666666',
-  },
-  railSelected: {
-    height: 4,
-    backgroundColor: '#D4AF37',
-    borderRadius: 2,
-  },
-
-  // Format step
-  formatContainer: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  formatButton: {
-    flex: 1,
-    paddingVertical: 32,
-    backgroundColor: '#1A1A1A',
-    borderRadius: 16,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#D4AF37',
-  },
-  formatButtonSelected: {
-    backgroundColor: '#D4AF37',
-    borderColor: '#D4AF37',
-  },
-  formatIcon: {
-    fontSize: 40,
-    marginBottom: 12,
-  },
-  formatText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  formatTextSelected: {
-    color: '#000000',
-  },
-
-  // Club step
+  // Club
   clubSearchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -973,6 +1020,9 @@ const styles = StyleSheet.create({
   },
   clubList: {
     flex: 1,
+  },
+  clubListContent: {
+    paddingBottom: 120,
   },
   clubItem: {
     padding: 16,
@@ -1004,7 +1054,51 @@ const styles = StyleSheet.create({
     color: '#AAAAAA',
   },
 
-  // Visibility step
+  // Options grid (category, age)
+  optionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  optionButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    backgroundColor: '#1A1A1A',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#D4AF37',
+    minWidth: (width - 64) / 3,
+    alignItems: 'center',
+  },
+  optionButtonSelected: {
+    backgroundColor: '#D4AF37',
+    borderColor: '#D4AF37',
+  },
+  optionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  optionTextSelected: {
+    color: '#000000',
+  },
+
+  // Options row (event type, position)
+  optionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  optionButtonLarge: {
+    flex: 1,
+    paddingVertical: 32,
+    backgroundColor: '#1A1A1A',
+    borderRadius: 16,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#D4AF37',
+  },
+
+  // Visibility
   visibilityContainer: {
     flexDirection: 'row',
     gap: 16,
@@ -1022,10 +1116,6 @@ const styles = StyleSheet.create({
   visibilityButtonSelected: {
     backgroundColor: '#D4AF37',
     borderColor: '#D4AF37',
-  },
-  visibilityIcon: {
-    fontSize: 32,
-    marginBottom: 8,
   },
   visibilityText: {
     fontSize: 16,
@@ -1074,7 +1164,36 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
 
-  // Recap step
+  // Ranking
+  rankingHelp: {
+    fontSize: 14,
+    color: '#AAAAAA',
+    marginBottom: 30,
+  },
+  rankingInputContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  rankingInput: {
+    fontSize: 48,
+    fontWeight: '700',
+    color: '#D4AF37',
+    textAlign: 'center',
+    backgroundColor: '#1A1A1A',
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#D4AF37',
+    paddingVertical: 24,
+    paddingHorizontal: 40,
+    minWidth: 200,
+  },
+  rankingDisplay: {
+    fontSize: 16,
+    color: '#AAAAAA',
+    textAlign: 'center',
+  },
+
+  // Recap
   recapContainer: {
     flex: 1,
   },
@@ -1149,5 +1268,7 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
 });
+
+
 
 

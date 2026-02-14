@@ -14,11 +14,20 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.warn('⚠️ Supabase environment variables not found, using fallback values');
 }
 
+// Fallback storage pour le SSR (Node.js n'a pas window)
+const memoryStorage = {
+  getItem: () => Promise.resolve(null),
+  setItem: () => Promise.resolve(),
+  removeItem: () => Promise.resolve(),
+};
+
+const isServer = typeof window === 'undefined';
+
 export const supabase = createClient(finalUrl, finalKey, {
   auth: {
-    storage: AsyncStorage,
+    storage: isServer ? memoryStorage : AsyncStorage,
     autoRefreshToken: true,
-    persistSession: true,
+    persistSession: !isServer,
     detectSessionInUrl: false,
   },
 });

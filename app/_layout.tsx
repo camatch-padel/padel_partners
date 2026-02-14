@@ -60,14 +60,14 @@ export default function RootLayout() {
         <Stack.Screen
           name="create-match"
           options={{
-            presentation: 'modal',
+            presentation: 'fullScreenModal',
             animation: 'slide_from_bottom',
           }}
         />
         <Stack.Screen
           name="edit-match/[id]"
           options={{
-            presentation: 'modal',
+            presentation: 'fullScreenModal',
             animation: 'slide_from_bottom',
           }}
         />

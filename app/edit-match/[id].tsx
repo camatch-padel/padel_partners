@@ -1,8 +1,9 @@
 import { supabase } from '@/constants/supabase';
 import { DAYS_OF_WEEK, DURATIONS, FORMATS, MONTHS, STEP_TITLES, TIME_SLOTS, VISIBILITY_OPTIONS } from '@/constants/match-constants';
+import LevelPyramid from '@/components/LevelPyramid';
 import type { Court, Group, MatchFormData } from '@/types/match';
+import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
-import RangeSlider from 'rn-range-slider';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -10,10 +11,12 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View
 } from 'react-native';
 
@@ -47,6 +50,9 @@ export default function EditMatchModal() {
 
   // État pour le DatePicker
   const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Recherche de clubs
+  const [clubSearch, setClubSearch] = useState('');
 
   // Charger les données de la partie et les données initiales
   useEffect(() => {
@@ -201,7 +207,7 @@ export default function EditMatchModal() {
   if (initialLoading || loadingData) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0066FF" />
+        <ActivityIndicator size="large" color="#D4AF37" />
         <Text style={styles.loadingText}>Chargement...</Text>
       </View>
     );
@@ -231,34 +237,61 @@ export default function EditMatchModal() {
     }
   };
 
+  const formatDate = (date: Date): string => {
+    return `${DAYS_OF_WEEK[date.getDay()]} ${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+  };
+
   // Étape 0 : Date
   const renderDateStep = () => (
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>Quelle est la date ?</Text>
 
-      <Pressable
-        style={styles.dateButton}
-        onPress={() => setShowDatePicker(true)}
-      >
-        <Text style={styles.dateButtonText}>
-          {DAYS_OF_WEEK[formData.date.getDay()]} {formData.date.getDate()} {MONTHS[formData.date.getMonth()]} {formData.date.getFullYear()}
-        </Text>
-      </Pressable>
+      {Platform.OS === 'ios' ? (
+        <View style={styles.calendarContainer}>
+          <DateTimePicker
+            value={formData.date}
+            mode="date"
+            display="inline"
+            minimumDate={new Date()}
+            accentColor="#D4AF37"
+            onChange={(_event, selectedDate) => {
+              if (selectedDate) {
+                setFormData({ ...formData, date: selectedDate });
+              }
+            }}
+          />
+        </View>
+      ) : (
+        <>
+          <Pressable
+            style={styles.dateButton}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <Ionicons name="calendar" size={32} color="#D4AF37" />
+            <Text style={styles.dateButtonText}>{formatDate(formData.date)}</Text>
+          </Pressable>
 
-      {showDatePicker && (
-        <DateTimePicker
-          value={formData.date}
-          mode="date"
-          display="default"
-          minimumDate={new Date()}
-          onChange={(event, selectedDate) => {
-            setShowDatePicker(false);
-            if (selectedDate) {
-              setFormData({ ...formData, date: selectedDate });
-            }
-          }}
-        />
+          {showDatePicker && (
+            <DateTimePicker
+              value={formData.date}
+              mode="date"
+              display="calendar"
+              minimumDate={new Date()}
+              onChange={(event, selectedDate) => {
+                if (event.type === 'set' && selectedDate) {
+                  setFormData({ ...formData, date: selectedDate });
+                }
+                setShowDatePicker(false);
+              }}
+            />
+          )}
+        </>
       )}
+
+      <View style={styles.selectedDateDisplay}>
+        <Ionicons name="calendar" size={20} color="#D4AF37" />
+        <Text style={styles.selectedDateText}>{formatDate(formData.date)}</Text>
+      </View>
     </View>
   );
 
@@ -266,7 +299,15 @@ export default function EditMatchModal() {
   const renderTimeSlotStep = () => (
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>À quelle heure ?</Text>
-      <ScrollView style={styles.timeSlotGrid} showsVerticalScrollIndicator={false}>
+
+      {formData.timeSlot ? (
+        <View style={styles.selectedDateDisplay}>
+          <Ionicons name="time" size={20} color="#D4AF37" />
+          <Text style={styles.selectedDateText}>{formData.timeSlot}</Text>
+        </View>
+      ) : null}
+
+      <ScrollView style={[styles.timeSlotGrid, { marginTop: 16 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.timeSlotRow}>
           {TIME_SLOTS.map((slot) => (
             <Pressable
@@ -310,9 +351,9 @@ export default function EditMatchModal() {
           const duration = DURATIONS[Math.round(value)];
           setFormData({ ...formData, duration: duration.value });
         }}
-        minimumTrackTintColor="#0066FF"
-        maximumTrackTintColor="rgba(255,255,255,0.3)"
-        thumbTintColor="#0066FF"
+        minimumTrackTintColor="#D4AF37"
+        maximumTrackTintColor="#666666"
+        thumbTintColor="#D4AF37"
       />
 
       <View style={styles.sliderLabels}>
@@ -335,16 +376,14 @@ export default function EditMatchModal() {
               styles.formatButton,
               formData.format === format.value && styles.formatButtonSelected,
             ]}
-            onPress={() => setFormData({ ...formData, format: format.value })}
+            onPress={() => setFormData({ ...formData, format: format.value as 2 | 4 })}
           >
-            <Text
-              style={[
-                styles.formatButtonIcon,
-                formData.format === format.value && styles.formatButtonIconSelected,
-              ]}
-            >
-              {format.icon}
-            </Text>
+            <Ionicons
+              name="people"
+              size={32}
+              color={formData.format === format.value ? '#000000' : '#D4AF37'}
+              style={{ marginRight: 16 }}
+            />
             <Text
               style={[
                 styles.formatButtonText,
@@ -359,106 +398,109 @@ export default function EditMatchModal() {
     </View>
   );
 
-  // Étape 4 : Niveau
+  // Étape 4 : Niveau minimum requis (triangle vertical)
   const renderLevelStep = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Quel niveau requis ?</Text>
-
-      <View style={styles.rangeValueContainer}>
-        <View style={styles.rangeValueBox}>
-          <Text style={styles.rangeValueLabel}>Min</Text>
-          <Text style={styles.rangeValue}>{formData.levelMin.toFixed(1)}</Text>
-        </View>
-        <Text style={styles.rangeValueSeparator}>-</Text>
-        <View style={styles.rangeValueBox}>
-          <Text style={styles.rangeValueLabel}>Max</Text>
-          <Text style={styles.rangeValue}>{formData.levelMax.toFixed(1)}</Text>
-        </View>
-      </View>
-
-      <RangeSlider
-        style={styles.rangeSlider}
-        min={1}
-        max={10}
-        step={0.1}
-        low={formData.levelMin}
-        high={formData.levelMax}
-        floatingLabel
-        renderThumb={() => <View style={styles.thumb} />}
-        renderRail={() => <View style={styles.rail} />}
-        renderRailSelected={() => <View style={styles.railSelected} />}
-        onValueChanged={(low, high) => {
-          const newMin = Math.round(low * 10) / 10;
-          const newMax = Math.round(high * 10) / 10;
-          if (newMin !== formData.levelMin || newMax !== formData.levelMax) {
-            setFormData({
-              ...formData,
-              levelMin: newMin,
-              levelMax: newMax,
-            });
-          }
-        }}
+      <Text style={styles.stepTitle}>Niveau minimum</Text>
+      <Text style={styles.levelHelpText}>Indiquez le niveau minimum souhaité pour votre partie</Text>
+      <LevelPyramid
+        value={formData.levelMin}
+        onChange={(value) => setFormData({ ...formData, levelMin: value, levelMax: 10 })}
       />
-
-      <View style={styles.sliderLabels}>
-        <Text style={styles.sliderLabel}>Débutant (1)</Text>
-        <Text style={styles.sliderLabel}>Expert (10)</Text>
-      </View>
     </View>
   );
 
   // Étape 5 : Club
-  const renderClubStep = () => (
-    <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Quel club ?</Text>
-      <ScrollView style={styles.clubList} showsVerticalScrollIndicator={false}>
-        <Pressable
-          style={[
-            styles.clubItem,
-            formData.clubId === null && styles.clubItemSelected,
-          ]}
-          onPress={() => setFormData({ ...formData, clubId: null })}
-        >
-          <Text
-            style={[
-              styles.clubItemText,
-              formData.clubId === null && styles.clubItemTextSelected,
-            ]}
-          >
-            Non spécifié
-          </Text>
-        </Pressable>
+  const renderClubStep = () => {
+    const searchLower = clubSearch.toLowerCase();
+    const filteredCourts = clubSearch.trim()
+      ? courts.filter(c =>
+          c.name.toLowerCase().includes(searchLower) ||
+          c.city.toLowerCase().includes(searchLower)
+        )
+      : courts;
 
-        {courts.map((court) => (
+    return (
+      <View style={styles.stepContainer}>
+        <Text style={styles.stepTitle}>Club (optionnel)</Text>
+
+        <View style={styles.clubSearchContainer}>
+          <Ionicons name="search" size={20} color="#D4AF37" />
+          <TextInput
+            style={styles.clubSearchInput}
+            placeholder="Rechercher par nom ou ville..."
+            placeholderTextColor="#666666"
+            value={clubSearch}
+            onChangeText={setClubSearch}
+            autoCapitalize="none"
+          />
+          {clubSearch.length > 0 && (
+            <Pressable onPress={() => setClubSearch('')}>
+              <Ionicons name="close-circle" size={20} color="#666666" />
+            </Pressable>
+          )}
+        </View>
+
+        <ScrollView style={styles.clubList} showsVerticalScrollIndicator={false}>
           <Pressable
-            key={court.id}
             style={[
               styles.clubItem,
-              formData.clubId === court.id && styles.clubItemSelected,
+              formData.clubId === null && styles.clubItemSelected,
             ]}
-            onPress={() => setFormData({ ...formData, clubId: court.id })}
+            onPress={() => setFormData({ ...formData, clubId: null })}
           >
             <Text
               style={[
                 styles.clubItemText,
-                formData.clubId === court.id && styles.clubItemTextSelected,
+                formData.clubId === null && styles.clubItemTextSelected,
               ]}
             >
-              {court.name}
+              Aucun club spécifié
             </Text>
-            <Text style={styles.clubItemCity}>{court.city}</Text>
           </Pressable>
-        ))}
-      </ScrollView>
-    </View>
-  );
+
+          {filteredCourts.map((court) => (
+            <Pressable
+              key={court.id}
+              style={[
+                styles.clubItem,
+                formData.clubId === court.id && styles.clubItemSelected,
+              ]}
+              onPress={() => setFormData({ ...formData, clubId: court.id })}
+            >
+              <Text
+                style={[
+                  styles.clubItemName,
+                  formData.clubId === court.id && styles.clubItemTextSelected,
+                ]}
+              >
+                {court.name}
+              </Text>
+              <Text
+                style={[
+                  styles.clubItemCity,
+                  formData.clubId === court.id && styles.clubItemTextSelected,
+                ]}
+              >
+                {court.city}
+              </Text>
+            </Pressable>
+          ))}
+
+          {filteredCourts.length === 0 && clubSearch.trim() && (
+            <Text style={styles.noClubText}>Aucun club trouvé pour "{clubSearch}"</Text>
+          )}
+        </ScrollView>
+      </View>
+    );
+  };
 
   // Étape 6 : Visibilité
   const renderVisibilityStep = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Qui peut voir cette partie ?</Text>
+      <Text style={styles.stepTitle}>Visibilité</Text>
 
-      <View style={styles.visibilityButtons}>
+      <View style={styles.visibilityContainer}>
         {VISIBILITY_OPTIONS.map((option) => (
           <Pressable
             key={option.value}
@@ -466,31 +508,27 @@ export default function EditMatchModal() {
               styles.visibilityButton,
               formData.visibility === option.value && styles.visibilityButtonSelected,
             ]}
-            onPress={() => setFormData({ ...formData, visibility: option.value, groupId: null })}
+            onPress={() => {
+              setFormData({
+                ...formData,
+                visibility: option.value as 'tous' | 'private',
+                groupId: option.value === 'tous' ? null : formData.groupId,
+              });
+            }}
           >
+            <Ionicons
+              name={option.value === 'tous' ? 'earth' : 'lock-closed'}
+              size={32}
+              color={formData.visibility === option.value ? '#000000' : '#D4AF37'}
+              style={{ marginBottom: 8 }}
+            />
             <Text
               style={[
-                styles.visibilityButtonIcon,
-                formData.visibility === option.value && styles.visibilityButtonIconSelected,
-              ]}
-            >
-              {option.icon}
-            </Text>
-            <Text
-              style={[
-                styles.visibilityButtonText,
-                formData.visibility === option.value && styles.visibilityButtonTextSelected,
+                styles.visibilityText,
+                formData.visibility === option.value && styles.visibilityTextSelected,
               ]}
             >
               {option.label}
-            </Text>
-            <Text
-              style={[
-                styles.visibilityButtonDescription,
-                formData.visibility === option.value && styles.visibilityButtonDescriptionSelected,
-              ]}
-            >
-              {option.description}
             </Text>
           </Pressable>
         ))}
@@ -498,14 +536,15 @@ export default function EditMatchModal() {
 
       {formData.visibility === 'private' && (
         <View style={styles.groupSelectionContainer}>
-          <Text style={styles.groupSelectionTitle}>Sélectionner un groupe</Text>
-          <ScrollView style={styles.groupList} showsVerticalScrollIndicator={false}>
-            {groups.length === 0 ? (
-              <Text style={styles.noGroupsText}>
-                Vous n'êtes membre d'aucun groupe.
-              </Text>
-            ) : (
-              groups.map((group) => (
+          <Text style={styles.groupSelectionTitle}>Sélectionnez un groupe :</Text>
+
+          {groups.length === 0 ? (
+            <Text style={styles.noGroupText}>
+              Vous n'êtes membre d'aucun groupe privé
+            </Text>
+          ) : (
+            <ScrollView style={styles.groupList} showsVerticalScrollIndicator={false}>
+              {groups.map((group) => (
                 <Pressable
                   key={group.id}
                   style={[
@@ -522,13 +561,10 @@ export default function EditMatchModal() {
                   >
                     {group.name}
                   </Text>
-                  {group.description && (
-                    <Text style={styles.groupItemDescription}>{group.description}</Text>
-                  )}
                 </Pressable>
-              ))
-            )}
-          </ScrollView>
+              ))}
+            </ScrollView>
+          )}
         </View>
       )}
     </View>
@@ -572,7 +608,7 @@ export default function EditMatchModal() {
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Niveau requis</Text>
             <Text style={styles.summaryValue}>
-              {formData.levelMin.toFixed(1)} - {formData.levelMax.toFixed(1)}
+              {formData.levelMin.toFixed(1)} - 10.0
             </Text>
           </View>
 
@@ -597,7 +633,7 @@ export default function EditMatchModal() {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator size="small" color="white" />
+            <ActivityIndicator size="small" color="#000000" />
           ) : (
             <Text style={styles.submitButtonText}>Mettre à jour la partie</Text>
           )}
@@ -611,7 +647,7 @@ export default function EditMatchModal() {
       {/* Header */}
       <View style={styles.header}>
         <Pressable style={styles.closeButton} onPress={() => router.back()}>
-          <Text style={styles.closeButtonText}>✕</Text>
+          <Ionicons name="close" size={24} color="#D4AF37" />
         </Pressable>
         <Text style={styles.headerTitle}>Modifier la partie</Text>
         <View style={styles.headerPlaceholder} />
@@ -667,7 +703,6 @@ export default function EditMatchModal() {
   );
 }
 
-// Les styles sont identiques à create-match.tsx
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -682,7 +717,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: 'rgba(255,255,255,0.7)',
+    color: '#AAAAAA',
   },
   header: {
     flexDirection: 'row',
@@ -691,53 +726,49 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 60,
     paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#D4AF37',
   },
   closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    justifyContent: 'center',
+    width: 40,
+    height: 40,
     alignItems: 'center',
-  },
-  closeButtonText: {
-    fontSize: 20,
-    color: 'white',
-    fontWeight: '600',
+    justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: 'white',
+    color: '#D4AF37',
   },
   headerPlaceholder: {
-    width: 36,
+    width: 40,
   },
   progressContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingTop: 16,
+    marginBottom: 24,
   },
   progressText: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.6)',
+    color: '#AAAAAA',
     marginBottom: 8,
   },
   progressBar: {
     height: 4,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: '#666666',
     borderRadius: 2,
     overflow: 'hidden',
     marginBottom: 12,
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#00D9C0',
+    backgroundColor: '#D4AF37',
     borderRadius: 2,
   },
   progressStepTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#00D9C0',
+    color: '#D4AF37',
   },
   content: {
     flex: 1,
@@ -752,23 +783,53 @@ const styles = StyleSheet.create({
   stepTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: 'white',
-    marginBottom: 32,
+    color: '#D4AF37',
+    marginBottom: 30,
   },
+
   // Date step
   dateButton: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    padding: 20,
-    borderRadius: 12,
+    backgroundColor: '#1A1A1A',
+    borderRadius: 16,
+    padding: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
     borderWidth: 2,
-    borderColor: '#0066FF',
+    borderColor: '#D4AF37',
   },
   dateButtonText: {
     fontSize: 18,
     fontWeight: '600',
-    color: 'white',
-    textAlign: 'center',
+    color: '#FFFFFF',
+    flex: 1,
   },
+  calendarContainer: {
+    backgroundColor: '#1A1A1A',
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#D4AF37',
+    overflow: 'hidden',
+    padding: 8,
+  },
+  selectedDateDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 16,
+    paddingVertical: 12,
+    backgroundColor: '#1A1A1A',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#D4AF37',
+  },
+  selectedDateText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#D4AF37',
+  },
+
   // Time slot step
   timeSlotGrid: {
     maxHeight: 400,
@@ -781,29 +842,30 @@ const styles = StyleSheet.create({
   timeSlotButton: {
     width: (width - 64) / 3,
     paddingVertical: 16,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: '#1A1A1A',
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: '#D4AF37',
   },
   timeSlotButtonSelected: {
-    backgroundColor: 'rgba(0,102,255,0.2)',
-    borderColor: '#0066FF',
+    backgroundColor: '#D4AF37',
+    borderColor: '#D4AF37',
   },
   timeSlotButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.7)',
+    color: '#FFFFFF',
     textAlign: 'center',
   },
   timeSlotButtonTextSelected: {
-    color: '#0066FF',
+    color: '#000000',
   },
+
   // Duration step
   durationValue: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#0066FF',
+    color: '#D4AF37',
     textAlign: 'center',
     marginBottom: 40,
   },
@@ -818,8 +880,9 @@ const styles = StyleSheet.create({
   },
   sliderLabel: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.6)',
+    color: '#AAAAAA',
   },
+
   // Format step
   formatButtons: {
     gap: 16,
@@ -828,152 +891,123 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 24,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: '#1A1A1A',
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: '#D4AF37',
   },
   formatButtonSelected: {
-    backgroundColor: 'rgba(0,102,255,0.2)',
-    borderColor: '#0066FF',
-  },
-  formatButtonIcon: {
-    fontSize: 32,
-    marginRight: 16,
-  },
-  formatButtonIconSelected: {
-    fontSize: 32,
+    backgroundColor: '#D4AF37',
+    borderColor: '#D4AF37',
   },
   formatButtonText: {
     fontSize: 18,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.7)',
+    color: '#FFFFFF',
   },
   formatButtonTextSelected: {
-    color: '#0066FF',
+    color: '#000000',
   },
+
   // Level step
-  rangeValueContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 20,
-    marginBottom: 40,
-  },
-  rangeValueBox: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  rangeValueLabel: {
+  levelHelpText: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.6)',
+    color: '#AAAAAA',
+    marginBottom: 20,
   },
-  rangeValue: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#0066FF',
-  },
-  rangeValueSeparator: {
-    fontSize: 24,
-    color: 'rgba(255,255,255,0.4)',
-  },
-  rangeSlider: {
-    width: width - 40,
-    height: 60,
-  },
-  thumb: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#0066FF',
-    borderWidth: 3,
-    borderColor: 'white',
-  },
-  rail: {
-    flex: 1,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-  railSelected: {
-    height: 4,
-    backgroundColor: '#00D9C0',
-    borderRadius: 2,
-  },
+
   // Club step
+  clubSearchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1A1A1A',
+    borderWidth: 2,
+    borderColor: '#D4AF37',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+    marginBottom: 16,
+  },
+  clubSearchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#FFFFFF',
+  },
+  noClubText: {
+    fontSize: 14,
+    color: '#AAAAAA',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 16,
+  },
   clubList: {
     maxHeight: 400,
   },
   clubItem: {
     padding: 16,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: '#1A1A1A',
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: '#D4AF37',
   },
   clubItemSelected: {
-    backgroundColor: 'rgba(0,102,255,0.2)',
-    borderColor: '#0066FF',
+    backgroundColor: '#D4AF37',
+    borderColor: '#D4AF37',
   },
   clubItemText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.7)',
+    color: '#FFFFFF',
   },
   clubItemTextSelected: {
-    color: '#0066FF',
+    color: '#000000',
+  },
+  clubItemName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 4,
   },
   clubItemCity: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.5)',
-    marginTop: 4,
+    color: '#AAAAAA',
   },
+
   // Visibility step
-  visibilityButtons: {
+  visibilityContainer: {
+    flexDirection: 'row',
     gap: 16,
+    marginBottom: 24,
   },
   visibilityButton: {
-    padding: 20,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 12,
+    flex: 1,
+    paddingVertical: 24,
+    backgroundColor: '#1A1A1A',
+    borderRadius: 16,
+    alignItems: 'center',
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: '#D4AF37',
   },
   visibilityButtonSelected: {
-    backgroundColor: 'rgba(0,102,255,0.2)',
-    borderColor: '#0066FF',
+    backgroundColor: '#D4AF37',
+    borderColor: '#D4AF37',
   },
-  visibilityButtonIcon: {
-    fontSize: 32,
-    marginBottom: 12,
-  },
-  visibilityButtonIconSelected: {
-    fontSize: 32,
-  },
-  visibilityButtonText: {
-    fontSize: 18,
+  visibilityText: {
+    fontSize: 16,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.7)',
-    marginBottom: 8,
+    color: '#FFFFFF',
   },
-  visibilityButtonTextSelected: {
-    color: '#0066FF',
-  },
-  visibilityButtonDescription: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.5)',
-  },
-  visibilityButtonDescriptionSelected: {
-    color: 'rgba(0,102,255,0.7)',
+  visibilityTextSelected: {
+    color: '#000000',
   },
   groupSelectionContainer: {
-    marginTop: 24,
+    marginTop: 16,
   },
   groupSelectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'white',
+    color: '#D4AF37',
     marginBottom: 12,
   },
   groupList: {
@@ -981,35 +1015,31 @@ const styles = StyleSheet.create({
   },
   groupItem: {
     padding: 16,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: '#1A1A1A',
     borderRadius: 12,
-    marginBottom: 12,
+    marginBottom: 8,
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: '#D4AF37',
   },
   groupItemSelected: {
-    backgroundColor: 'rgba(0,102,255,0.2)',
-    borderColor: '#0066FF',
+    backgroundColor: '#D4AF37',
+    borderColor: '#D4AF37',
   },
   groupItemText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.7)',
+    color: '#FFFFFF',
   },
   groupItemTextSelected: {
-    color: '#0066FF',
+    color: '#000000',
   },
-  groupItemDescription: {
+  noGroupText: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.5)',
-    marginTop: 4,
-  },
-  noGroupsText: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.5)',
+    color: '#AAAAAA',
+    fontStyle: 'italic',
     textAlign: 'center',
-    padding: 20,
+    marginTop: 12,
   },
+
   // Summary step
   summary: {
     marginBottom: 24,
@@ -1019,28 +1049,30 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.6)',
+    color: '#AAAAAA',
     marginBottom: 4,
   },
   summaryValue: {
     fontSize: 18,
     fontWeight: '600',
-    color: 'white',
+    color: '#FFFFFF',
   },
   submitButton: {
-    backgroundColor: '#0066FF',
-    paddingVertical: 16,
+    backgroundColor: '#D4AF37',
+    paddingVertical: 18,
     borderRadius: 12,
     alignItems: 'center',
+    marginTop: 8,
   },
   submitButtonDisabled: {
-    opacity: 0.5,
+    backgroundColor: '#666666',
   },
   submitButtonText: {
     fontSize: 18,
-    fontWeight: '600',
-    color: 'white',
+    fontWeight: '700',
+    color: '#000000',
   },
+
   // Footer
   footer: {
     flexDirection: 'row',
@@ -1049,17 +1081,20 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     backgroundColor: '#000000',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
+    borderTopColor: '#D4AF37',
   },
   footerButton: {
     flex: 1,
     paddingVertical: 16,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: '#1A1A1A',
+    borderWidth: 2,
+    borderColor: '#D4AF37',
     alignItems: 'center',
   },
   footerButtonNext: {
-    backgroundColor: '#0066FF',
+    backgroundColor: '#D4AF37',
+    borderColor: '#D4AF37',
   },
   footerButtonDisabled: {
     opacity: 0.3,
@@ -1067,9 +1102,11 @@ const styles = StyleSheet.create({
   footerButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.7)',
+    color: '#D4AF37',
   },
   footerButtonTextNext: {
-    color: 'white',
+    color: '#000000',
   },
 });
+
+

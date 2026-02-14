@@ -1,14 +1,18 @@
 import { supabase } from '@/constants/supabase';
 import type { MatchWithDetails } from '@/types/match';
 import Avatar from '@/components/Avatar';
-import RangeSlider from 'rn-range-slider';
+import LevelPyramid from '@/components/LevelPyramid';
 import Slider from '@react-native-community/slider';
-import { useEffect, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
+import { router } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Dimensions,
   FlatList,
+  ImageBackground,
   Pressable,
   StyleSheet,
   Text,
@@ -19,33 +23,64 @@ const { width } = Dimensions.get('window');
 
 interface MatchWithDistance extends MatchWithDetails {
   distance?: number; // Distance en km depuis la ville de l'utilisateur
+  message_count?: number; // Nombre de messages dans le chat
+  request_count?: number; // Nombre de demandes en attente
+  waitlist_count?: number; // Nombre de joueurs en liste d'attente
 }
 
 export default function ExploreScreen() {
   const [matches, setMatches] = useState<MatchWithDistance[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userCity, setUserCity] = useState<string>('');
+  const [locationSource, setLocationSource] = useState<'gps' | 'city' | 'none'>('none');
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   // Filtres
   const [levelMin, setLevelMin] = useState(1.0);
-  const [levelMax, setLevelMax] = useState(10.0);
   const [maxDistance, setMaxDistance] = useState(50); // km
+  const [sliderDistance, setSliderDistance] = useState(50); // valeur affichée pendant le glissement
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'full' | 'completed'>('open');
   const [showFilters, setShowFilters] = useState(false);
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    loadUserCity();
+    loadUserLocation();
+    autoCompleteMatches();
   }, []);
 
-  useEffect(() => {
-    if (userCoords) {
-      loadMatches();
-    }
-  }, [levelMin, levelMax, maxDistance, statusFilter, userCoords]);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const loadUserCity = async () => {
+  useEffect(() => {
+    if (!userCoords) return;
+
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+    debounceRef.current = setTimeout(() => {
+      loadMatches();
+    }, 400);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [levelMin, maxDistance, statusFilter, userCoords]);
+
+  const loadUserLocation = async () => {
     try {
+      // 1. Essayer la géolocalisation GPS
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        setUserCoords({
+          lat: location.coords.latitude,
+          lng: location.coords.longitude,
+        });
+        setLocationSource('gps');
+        return;
+      }
+
+      // 2. Fallback : coordonnées de la ville du profil
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         const { data: profile } = await supabase
@@ -55,9 +90,6 @@ export default function ExploreScreen() {
           .single();
 
         if (profile?.city) {
-          setUserCity(profile.city);
-
-          // Récupérer les coordonnées de la ville depuis la table cities
           const { data: cityData } = await supabase
             .from('cities')
             .select('latitude, longitude')
@@ -67,20 +99,21 @@ export default function ExploreScreen() {
           if (cityData) {
             setUserCoords({
               lat: Number(cityData.latitude),
-              lng: Number(cityData.longitude)
+              lng: Number(cityData.longitude),
             });
-          } else {
-            // Si la ville n'est pas dans la table, charger quand même les matchs sans filtre de distance
-            setUserCoords({ lat: 0, lng: 0 });
+            setLocationSource('city');
+            return;
           }
-        } else {
-          // Pas de ville définie, charger les matchs sans filtre
-          setUserCoords({ lat: 0, lng: 0 });
         }
       }
-    } catch (error) {
-      console.error('Erreur chargement ville:', error);
+
+      // 3. Aucune localisation disponible
       setUserCoords({ lat: 0, lng: 0 });
+      setLocationSource('none');
+    } catch (error) {
+      console.error('Erreur géolocalisation:', error);
+      setUserCoords({ lat: 0, lng: 0 });
+      setLocationSource('none');
     }
   };
 
@@ -99,23 +132,92 @@ export default function ExploreScreen() {
     return R * c;
   };
 
+  // Auto-compléter les parties dont la date+heure+durée est passée
+  const autoCompleteMatches = async () => {
+    try {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const todayStr = `${year}-${month}-${day}`;
+
+      const { data: activeMatches } = await supabase
+        .from('matches')
+        .select('id, date, time_slot, duration_minutes, status')
+        .in('status', ['open', 'full'])
+        .lte('date', todayStr);
+
+      if (activeMatches && activeMatches.length > 0) {
+        const matchIdsToComplete: string[] = [];
+        const matchIdsToDelete: string[] = [];
+
+        for (const match of activeMatches) {
+          const dateStr = match.date.split('T')[0];
+          const timeStr = match.time_slot.length === 5 ? `${match.time_slot}:00` : match.time_slot;
+          const matchEnd = new Date(`${dateStr}T${timeStr}`);
+          matchEnd.setMinutes(matchEnd.getMinutes() + (match.duration_minutes || 90));
+
+          if (!isNaN(matchEnd.getTime()) && now > matchEnd) {
+            if (match.status === 'full') {
+              matchIdsToComplete.push(match.id);
+            } else {
+              matchIdsToDelete.push(match.id);
+            }
+          }
+        }
+
+        if (matchIdsToComplete.length > 0) {
+          await supabase.from('matches').update({ status: 'completed' }).in('id', matchIdsToComplete);
+        }
+        if (matchIdsToDelete.length > 0) {
+          await supabase.from('matches').delete().in('id', matchIdsToDelete);
+        }
+      }
+
+      // Supprimer les parties "completed" sans assez de joueurs
+      const { data: completedMatches } = await supabase
+        .from('matches')
+        .select('id, format')
+        .eq('status', 'completed');
+
+      if (completedMatches && completedMatches.length > 0) {
+        const idsToCheck = completedMatches.map(m => m.id);
+        const { data: participants } = await supabase
+          .from('match_participants')
+          .select('match_id')
+          .in('match_id', idsToCheck);
+
+        const incompletIds: string[] = [];
+        for (const match of completedMatches) {
+          const count = participants?.filter(p => p.match_id === match.id).length || 0;
+          const required = match.format === 4 || match.format === '4' || match.format === '2v2' ? 4 : 2;
+          if (count < required) {
+            incompletIds.push(match.id);
+          }
+        }
+
+        if (incompletIds.length > 0) {
+          await supabase.from('matches').delete().in('id', incompletIds);
+        }
+      }
+    } catch (error) {
+      console.error('Erreur auto-complétion:', error);
+    }
+  };
+
   const loadMatches = async () => {
     try {
       setLoading(true);
-
-      // DEBUG: Log des filtres actifs
-      console.log(`[DEBUG] Filtres actifs: Niveau ${levelMin}-${levelMax}, Distance max ${maxDistance}km, Status: ${statusFilter}`);
 
       // Récupérer les parties avec les coordonnées des courts
       let query = supabase
         .from('matches')
         .select(`
           *,
-          creator:Profiles!matches_creator_id_fkey(id, username, firstname, lastname, declared_level, avatar_url),
+          creator:Profiles!matches_creator_id_fkey(id, username, firstname, lastname, declared_level, community_level, community_level_votes, avatar_url),
           court:courts(id, name, city, address, latitude, longitude)
         `)
-        .gte('level_max', levelMin)
-        .lte('level_min', levelMax)
+        .gte('level_min', levelMin)
         .gte('date', new Date().toISOString().split('T')[0])
         .order('date', { ascending: true })
         .order('time_slot', { ascending: true });
@@ -150,9 +252,47 @@ export default function ExploreScreen() {
         .select(`
           match_id,
           user_id,
-          profile:Profiles!match_participants_user_id_fkey(username, firstname, lastname, avatar_url, declared_level)
+          profile:Profiles!match_participants_user_id_fkey(username, firstname, lastname, avatar_url, declared_level, community_level, community_level_votes)
         `)
         .in('match_id', matchIds);
+
+      // Récupérer le nombre de messages pour chaque match
+      const { data: messagesCountData } = await supabase
+        .from('match_messages')
+        .select('match_id')
+        .in('match_id', matchIds);
+
+      // Créer un map pour compter les messages par match
+      const messageCountByMatch = new Map<string, number>();
+      messagesCountData?.forEach((msg: any) => {
+        const count = messageCountByMatch.get(msg.match_id) || 0;
+        messageCountByMatch.set(msg.match_id, count + 1);
+      });
+
+      // Récupérer les demandes en attente par match
+      const { data: requestsData } = await supabase
+        .from('match_requests')
+        .select('match_id')
+        .in('match_id', matchIds)
+        .eq('status', 'pending');
+
+      const requestCountByMatch = new Map<string, number>();
+      requestsData?.forEach((req: any) => {
+        const count = requestCountByMatch.get(req.match_id) || 0;
+        requestCountByMatch.set(req.match_id, count + 1);
+      });
+
+      // Récupérer les joueurs en liste d'attente par match
+      const { data: waitlistData } = await supabase
+        .from('match_waitlist')
+        .select('match_id')
+        .in('match_id', matchIds);
+
+      const waitlistCountByMatch = new Map<string, number>();
+      waitlistData?.forEach((entry: any) => {
+        const count = waitlistCountByMatch.get(entry.match_id) || 0;
+        waitlistCountByMatch.set(entry.match_id, count + 1);
+      });
 
       // Construire les objets MatchWithDistance et calculer les distances
       const matchesWithDetails: MatchWithDistance[] = matchesData.map(match => {
@@ -165,6 +305,8 @@ export default function ExploreScreen() {
             firstname: p.profile?.firstname || '',
             lastname: p.profile?.lastname || '',
             declared_level: p.profile?.declared_level || 0,
+            community_level: p.profile?.community_level || null,
+            community_level_votes: p.profile?.community_level_votes || 0,
             avatar_url: p.profile?.avatar_url || null,
           })) || [];
 
@@ -189,18 +331,39 @@ export default function ExploreScreen() {
             firstname: 'Utilisateur',
             lastname: 'Inconnu',
             declared_level: 0,
+            community_level: null,
+            community_level_votes: 0,
             avatar_url: null
           },
           court: match.court || null,
           group: null,
           participants: matchParticipants,
           participants_count,
-          distance
+          distance,
+          message_count: messageCountByMatch.get(match.id) || 0,
+          request_count: requestCountByMatch.get(match.id) || 0,
+          waitlist_count: waitlistCountByMatch.get(match.id) || 0
         };
       });
 
+      // Filtrer les matches passés (aujourd'hui mais heure dépassée)
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+      const futureMatches = matchesWithDetails.filter(match => {
+        // Si la date est dans le futur, garder
+        if (match.date > todayStr) return true;
+        // Si c'est aujourd'hui, vérifier l'heure
+        if (match.date === todayStr) {
+          return match.time_slot > currentTime;
+        }
+        // Sinon, c'est dans le passé
+        return false;
+      });
+
       // Filtrer par distance si disponible
-      const filteredMatches = matchesWithDetails.filter(match => {
+      const filteredMatches = futureMatches.filter(match => {
         // Si pas de distance calculée, garder le match
         if (match.distance === undefined) return true;
         // Sinon, filtrer par distance maximale
@@ -254,10 +417,91 @@ export default function ExploreScreen() {
         return;
       }
 
+      // Récupérer le profil du joueur pour vérifier le niveau
+      const { data: userProfile } = await supabase
+        .from('Profiles')
+        .select('declared_level')
+        .eq('id', session.user.id)
+        .single();
+
+      const userLevel = userProfile?.declared_level || 0;
+
+      // Vérifier le niveau requis
+      if (userLevel < match.level_min || userLevel > match.level_max) {
+        Alert.alert(
+          'Niveau requis',
+          `Vous n'avez pas le niveau requis pour cette partie (${match.level_min.toFixed(1)} - ${match.level_max.toFixed(1)}). Souhaitez-vous faire une demande au créateur ?`,
+          [
+            { text: 'Non', style: 'cancel' },
+            {
+              text: 'Oui',
+              onPress: async () => {
+                try {
+                  const { error } = await supabase
+                    .from('match_requests')
+                    .insert({ match_id: match.id, user_id: session.user.id });
+                  if (error) {
+                    if (error.code === '23505') {
+                      Alert.alert('Info', 'Vous avez déjà fait une demande pour cette partie');
+                    } else {
+                      throw error;
+                    }
+                  } else {
+                    Alert.alert('Succès', 'Votre demande a été envoyée au créateur');
+                  }
+                } catch (err: any) {
+                  Alert.alert('Erreur', err.message || 'Impossible d\'envoyer la demande');
+                }
+              },
+            },
+          ]
+        );
+        return;
+      }
+
       // Vérifier s'il reste des places
-      const totalParticipants = 1 + match.participants.filter(p => p.user_id !== match.creator.id).length;
+      const totalParticipants = match.participants.length;
       if (totalParticipants >= match.format) {
-        Alert.alert('Info', 'Cette partie est complète');
+        // Partie pleine → proposer la liste d'attente
+        Alert.alert(
+          'Partie complète',
+          'Cette partie est complète. Souhaitez-vous vous mettre en liste d\'attente ?',
+          [
+            { text: 'Non', style: 'cancel' },
+            {
+              text: 'Oui',
+              onPress: async () => {
+                try {
+                  // Récupérer la position max actuelle
+                  const { data: maxPos } = await supabase
+                    .from('match_waitlist')
+                    .select('position')
+                    .eq('match_id', match.id)
+                    .order('position', { ascending: false })
+                    .limit(1);
+
+                  const nextPosition = (maxPos && maxPos.length > 0) ? maxPos[0].position + 1 : 1;
+
+                  const { error } = await supabase
+                    .from('match_waitlist')
+                    .insert({ match_id: match.id, user_id: session.user.id, position: nextPosition });
+
+                  if (error) {
+                    if (error.code === '23505') {
+                      Alert.alert('Info', 'Vous êtes déjà en liste d\'attente');
+                    } else {
+                      throw error;
+                    }
+                  } else {
+                    Alert.alert('Succès', `Vous êtes en position #${nextPosition} sur la liste d'attente`);
+                  }
+                } catch (err: any) {
+                  Alert.alert('Erreur', err.message || 'Impossible de rejoindre la liste d\'attente');
+                }
+              },
+            },
+          ]
+        );
         return;
       }
 
@@ -275,7 +519,6 @@ export default function ExploreScreen() {
         // Vérifier si la partie est maintenant complète
         const newTotalParticipants = totalParticipants + 1;
         if (newTotalParticipants >= match.format) {
-          // Mettre à jour le statut à 'full'
           await supabase
             .from('matches')
             .update({ status: 'full' })
@@ -283,7 +526,6 @@ export default function ExploreScreen() {
         }
 
         Alert.alert('Succès', 'Vous avez rejoint la partie !');
-        // Recharger les matches
         loadMatches();
       }
     } catch (error: any) {
@@ -291,14 +533,43 @@ export default function ExploreScreen() {
     }
   };
 
+  const toggleCard = (matchId: string) => {
+    setExpandedCards(prev => {
+      const next = new Set(prev);
+      if (next.has(matchId)) {
+        next.delete(matchId);
+      } else {
+        next.add(matchId);
+      }
+      return next;
+    });
+  };
+
+  const renderLevelText = (declared: number, communityLevel: number | null, votes: number) => {
+    if (!votes || votes === 0 || communityLevel == null) {
+      return <Text style={styles.avatarLevel}>{declared.toFixed(1)}</Text>;
+    }
+    const isLower = communityLevel < declared;
+    return (
+      <Text style={styles.avatarLevel}>
+        {declared.toFixed(1)}
+        <Text style={{ color: isLower ? '#FF4444' : '#44DD44' }}>
+          {' / '}{communityLevel.toFixed(1)}
+        </Text>
+      </Text>
+    );
+  };
+
   const renderMatch = ({ item }: { item: MatchWithDistance }) => {
     // Calculer les participants autres que le créateur
     const otherParticipants = item.participants.filter(p => p.user_id !== item.creator.id);
     // Places restantes = format - 1 (créateur) - participants affichés
     const spotsLeft = item.format - 1 - otherParticipants.length;
+    const isExpanded = expandedCards.has(item.id);
 
     return (
-      <Pressable style={styles.matchCard}>
+      <Pressable style={styles.matchCard} onPress={() => toggleCard(item.id)}>
+        {/* Header toujours visible */}
         <View style={styles.matchHeader}>
           <View style={styles.matchDateContainer}>
             <Text style={styles.matchDate}>{formatDate(item.date)}</Text>
@@ -313,93 +584,136 @@ export default function ExploreScreen() {
               {spotsLeft}/{item.format}
             </Text>
           </View>
+          <Ionicons
+            name={isExpanded ? 'chevron-up' : 'chevron-down'}
+            size={20}
+            color="#D4AF37"
+            style={{ marginLeft: 8 }}
+          />
         </View>
 
-        <View style={styles.matchInfo}>
-          <View style={styles.matchInfoRow}>
-            <Text style={styles.matchInfoIcon}>📍</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.matchInfoText}>
-                {item.court ? `${item.court.name} - ${item.court.city}` : 'Lieu non spécifié'}
-              </Text>
-              {item.distance !== undefined && (
-                <Text style={styles.matchDistance}>
-                  À {item.distance.toFixed(1)} km
-                </Text>
-              )}
-            </View>
-          </View>
-
-          <View style={styles.matchInfoRow}>
-            <Text style={styles.matchInfoIcon}>⭐</Text>
-            <Text style={styles.matchInfoText}>
-              Niveau {item.level_min.toFixed(1)} - {item.level_max.toFixed(1)}
-            </Text>
-          </View>
-
-          <View style={styles.matchInfoRow}>
-            <Text style={styles.matchInfoIcon}>⏱️</Text>
-            <Text style={styles.matchInfoText}>
-              {item.duration_minutes} min · {item.format} joueurs
-            </Text>
-          </View>
-
-          <View style={styles.matchInfoRow}>
-            <Text style={styles.matchInfoIcon}>👤</Text>
-            <Text style={styles.matchInfoText}>
-              Organisé par {item.creator.username}
-            </Text>
-          </View>
-        </View>
-
-        {/* Avatars des participants */}
-        <View style={styles.participantsSection}>
-          <Text style={styles.participantsLabel}>
-            Participants ({1 + otherParticipants.length}/{item.format})
-          </Text>
-          <View style={styles.participantsAvatars}>
-            {/* Créateur toujours en premier */}
-            <View style={styles.avatarWrapper}>
-              <Avatar
-                imageUrl={item.creator.avatar_url}
-                firstName={item.creator.firstname || 'U'}
-                lastName={item.creator.lastname || 'ser'}
-                size={48}
-              />
-            </View>
-
-            {/* Autres participants (sauf le créateur pour éviter doublon) */}
-            {otherParticipants.map((participant) => (
-                <View key={participant.user_id} style={styles.avatarWrapper}>
-                  <Avatar
-                    imageUrl={participant.avatar_url}
-                    firstName={participant.firstname || 'U'}
-                    lastName={participant.lastname || 'ser'}
-                    size={48}
-                  />
+        {/* Contenu déplié */}
+        {isExpanded && (
+          <>
+            <View style={styles.matchInfo}>
+              <View style={styles.matchInfoRow}>
+                <Ionicons name="location" size={18} color="#D4AF37" style={styles.matchInfoIcon} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.matchInfoText}>
+                    {item.court ? `${item.court.name} - ${item.court.city}` : 'Lieu non spécifié'}
+                  </Text>
+                  {item.distance !== undefined && (
+                    <Text style={styles.matchDistance}>
+                      À {item.distance.toFixed(1)} km
+                    </Text>
+                  )}
                 </View>
-              ))}
-
-            {/* Places vides */}
-            {Array.from({ length: spotsLeft }).map((_, index) => (
-              <View
-                key={`empty-${index}`}
-                style={[styles.avatarWrapper, styles.emptyAvatar]}
-              >
-                <Text style={styles.emptyAvatarText}>?</Text>
               </View>
-            ))}
-          </View>
-        </View>
 
-        <View style={styles.matchFooter}>
-          <Pressable
-            style={styles.joinButton}
-            onPress={() => handleJoinMatch(item)}
-          >
-            <Text style={styles.joinButtonText}>Rejoindre</Text>
-          </Pressable>
-        </View>
+              <View style={styles.matchInfoRow}>
+                <Ionicons name="star" size={18} color="#D4AF37" style={styles.matchInfoIcon} />
+                <Text style={styles.matchInfoText}>
+                  Niveau mini {item.level_min.toFixed(1)}
+                </Text>
+              </View>
+
+              <View style={styles.matchInfoRow}>
+                <Ionicons name="time" size={18} color="#D4AF37" style={styles.matchInfoIcon} />
+                <Text style={styles.matchInfoText}>
+                  {item.duration_minutes} min · {item.format} joueurs
+                </Text>
+              </View>
+
+              <View style={styles.matchInfoRow}>
+                <Ionicons name="person" size={18} color="#D4AF37" style={styles.matchInfoIcon} />
+                <Text style={styles.matchInfoText}>
+                  Organisé par {item.creator.username}
+                </Text>
+              </View>
+            </View>
+
+            {/* Avatars des participants */}
+            <View style={styles.participantsSection}>
+              <Text style={styles.participantsLabel}>
+                Participants ({1 + otherParticipants.length}/{item.format})
+              </Text>
+              <View style={styles.participantsAvatars}>
+                {/* Créateur toujours en premier */}
+                <View style={styles.avatarWithInfo}>
+                  <Avatar
+                    imageUrl={item.creator.avatar_url}
+                    firstName={item.creator.firstname || 'U'}
+                    lastName={item.creator.lastname || 'ser'}
+                    size={60}
+                  />
+                  <Text style={styles.avatarName} numberOfLines={1}>{item.creator.firstname}</Text>
+                  {renderLevelText(item.creator.declared_level, item.creator.community_level, item.creator.community_level_votes)}
+                </View>
+
+                {/* Autres participants */}
+                {otherParticipants.map((participant) => (
+                  <View key={participant.user_id} style={styles.avatarWithInfo}>
+                    <Avatar
+                      imageUrl={participant.avatar_url}
+                      firstName={participant.firstname || 'U'}
+                      lastName={participant.lastname || 'ser'}
+                      size={60}
+                    />
+                    <Text style={styles.avatarName} numberOfLines={1}>{participant.firstname}</Text>
+                    {renderLevelText(participant.declared_level, participant.community_level, participant.community_level_votes)}
+                  </View>
+                ))}
+
+                {/* Places vides */}
+                {Array.from({ length: spotsLeft }).map((_, index) => (
+                  <View key={`empty-${index}`} style={styles.avatarWithInfo}>
+                    <View style={[styles.avatarWrapper, styles.emptyAvatar]}>
+                      <Text style={styles.emptyAvatarText}>?</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.matchFooter}>
+              <View style={styles.footerBadges}>
+                <Pressable
+                  style={styles.chatButton}
+                  onPress={() => router.push(`/match/${item.id}` as any)}
+                >
+                  <Ionicons
+                    name={(item.message_count || 0) > 0 ? "chatbubbles" : "chatbubbles-outline"}
+                    size={20}
+                    color="#D4AF37"
+                  />
+                </Pressable>
+
+                {(item.request_count || 0) > 0 && (
+                  <View style={styles.badgeButton}>
+                    <Ionicons name="hand-left" size={16} color="#D4AF37" />
+                    <Text style={styles.badgeCount}>{item.request_count}</Text>
+                    <Text style={styles.badgeLabel}>Demandes</Text>
+                  </View>
+                )}
+
+                {(item.waitlist_count || 0) > 0 && (
+                  <View style={styles.badgeButton}>
+                    <Ionicons name="hourglass" size={16} color="#D4AF37" />
+                    <Text style={styles.badgeCount}>{item.waitlist_count}</Text>
+                    <Text style={styles.badgeLabel}>File d'attente</Text>
+                  </View>
+                )}
+              </View>
+
+              <Pressable
+                style={styles.joinButton}
+                onPress={() => handleJoinMatch(item)}
+              >
+                <Text style={styles.joinButtonText}>Rejoindre</Text>
+              </Pressable>
+            </View>
+          </>
+        )}
       </Pressable>
     );
   };
@@ -407,50 +721,19 @@ export default function ExploreScreen() {
   const renderFilters = () => (
     <View style={styles.filtersContainer}>
       <View style={styles.filterSection}>
-        <Text style={styles.filterLabel}>Niveau requis</Text>
-        <View style={styles.rangeValueContainer}>
-          <View style={styles.rangeValueBox}>
-            <Text style={styles.rangeValueLabel}>Min</Text>
-            <Text style={styles.rangeValue}>{levelMin.toFixed(1)}</Text>
-          </View>
-          <Text style={styles.rangeValueSeparator}>-</Text>
-          <View style={styles.rangeValueBox}>
-            <Text style={styles.rangeValueLabel}>Max</Text>
-            <Text style={styles.rangeValue}>{levelMax.toFixed(1)}</Text>
-          </View>
-        </View>
-
-        <RangeSlider
-          style={styles.rangeSlider}
-          min={1}
-          max={10}
-          step={0.1}
-          low={levelMin}
-          high={levelMax}
-          renderThumb={() => <View style={styles.thumb} />}
-          renderRail={() => <View style={styles.rail} />}
-          renderRailSelected={() => <View style={styles.railSelected} />}
-          onValueChanged={(low, high) => {
-            const newMin = Math.round(low * 10) / 10;
-            const newMax = Math.round(high * 10) / 10;
-            if (newMin !== levelMin || newMax !== levelMax) {
-              setLevelMin(newMin);
-              setLevelMax(newMax);
-            }
-          }}
-        />
-        <View style={styles.sliderLabels}>
-          <Text style={styles.sliderLabel}>Débutant (1)</Text>
-          <Text style={styles.sliderLabel}>Expert (10)</Text>
-        </View>
+        <Text style={styles.filterLabel}>Niveau minimum</Text>
+        <LevelPyramid value={levelMin} onChange={setLevelMin} />
       </View>
 
       <View style={styles.filterSection}>
         <Text style={styles.filterLabel}>Distance maximale</Text>
         <View style={styles.distanceValueContainer}>
-          <Text style={styles.distanceValue}>{maxDistance} km</Text>
-          {userCity && (
-            <Text style={styles.distanceSubtext}>depuis {userCity}</Text>
+          <Text style={styles.distanceValue}>{sliderDistance} km</Text>
+          {locationSource === 'gps' && (
+            <Text style={styles.distanceSubtext}>depuis votre position</Text>
+          )}
+          {locationSource === 'city' && (
+            <Text style={styles.distanceSubtext}>depuis votre ville</Text>
           )}
         </View>
 
@@ -460,20 +743,22 @@ export default function ExploreScreen() {
           maximumValue={200}
           step={5}
           value={maxDistance}
-          onValueChange={(value) => setMaxDistance(value)}
-          minimumTrackTintColor="#0066FF"
-          maximumTrackTintColor="rgba(255,255,255,0.3)"
-          thumbTintColor="#0066FF"
+          onValueChange={(value) => setSliderDistance(value)}
+          onSlidingComplete={(value) => setMaxDistance(value)}
+          minimumTrackTintColor="#D4AF37"
+          maximumTrackTintColor="#666666"
+          thumbTintColor="#D4AF37"
         />
         <View style={styles.sliderLabels}>
           <Text style={styles.sliderLabel}>5 km</Text>
           <Text style={styles.sliderLabel}>200 km</Text>
         </View>
 
-        {userCoords && userCoords.lat === 0 && (
+        {locationSource === 'none' && (
           <View style={styles.distanceNote}>
+            <Ionicons name="information-circle" size={16} color="#D4AF37" style={{ marginRight: 8 }} />
             <Text style={styles.distanceNoteText}>
-              ℹ️ Votre ville n'est pas encore dans notre base. Les distances ne seront pas calculées.
+              Activez la géolocalisation pour filtrer par distance.
             </Text>
           </View>
         )}
@@ -486,7 +771,7 @@ export default function ExploreScreen() {
             style={[styles.statusButton, statusFilter === 'all' && styles.statusButtonActive]}
             onPress={() => setStatusFilter('all')}
           >
-            <Text style={[styles.statusButtonText, statusFilter === 'all' && styles.statusButtonTextActive]}>
+            <Text numberOfLines={1} style={[styles.statusButtonText, statusFilter === 'all' && styles.statusButtonTextActive]}>
               Toutes
             </Text>
           </Pressable>
@@ -494,7 +779,7 @@ export default function ExploreScreen() {
             style={[styles.statusButton, statusFilter === 'open' && styles.statusButtonActive]}
             onPress={() => setStatusFilter('open')}
           >
-            <Text style={[styles.statusButtonText, statusFilter === 'open' && styles.statusButtonTextActive]}>
+            <Text numberOfLines={1} style={[styles.statusButtonText, statusFilter === 'open' && styles.statusButtonTextActive]}>
               Ouvertes
             </Text>
           </Pressable>
@@ -502,7 +787,7 @@ export default function ExploreScreen() {
             style={[styles.statusButton, statusFilter === 'full' && styles.statusButtonActive]}
             onPress={() => setStatusFilter('full')}
           >
-            <Text style={[styles.statusButtonText, statusFilter === 'full' && styles.statusButtonTextActive]}>
+            <Text numberOfLines={1} style={[styles.statusButtonText, statusFilter === 'full' && styles.statusButtonTextActive]}>
               Complètes
             </Text>
           </Pressable>
@@ -510,7 +795,7 @@ export default function ExploreScreen() {
             style={[styles.statusButton, statusFilter === 'completed' && styles.statusButtonActive]}
             onPress={() => setStatusFilter('completed')}
           >
-            <Text style={[styles.statusButtonText, statusFilter === 'completed' && styles.statusButtonTextActive]}>
+            <Text numberOfLines={1} style={[styles.statusButtonText, statusFilter === 'completed' && styles.statusButtonTextActive]}>
               Terminées
             </Text>
           </Pressable>
@@ -520,24 +805,30 @@ export default function ExploreScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <ImageBackground
+      source={require('@/assets/images/piste-noire.png')}
+      style={styles.container}
+      resizeMode="cover"
+    >
       <View style={styles.header}>
-        <Text style={styles.title}>🔍 Chercher une partie</Text>
+        <View style={styles.titleContainer}>
+          <Ionicons name="search" size={28} color="#D4AF37" />
+          <Text style={styles.title}>Chercher une partie</Text>
+        </View>
         <Pressable
           style={styles.filterToggle}
           onPress={() => setShowFilters(!showFilters)}
         >
+          <Ionicons name="filter" size={20} color="#D4AF37" style={{ marginRight: 6 }} />
           <Text style={styles.filterToggleText}>
-            {showFilters ? 'Masquer filtres' : 'Filtres'}
+            {showFilters ? 'Masquer' : 'Filtres'}
           </Text>
         </Pressable>
       </View>
 
-      {showFilters && renderFilters()}
-
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#0066FF" />
+          <ActivityIndicator size="large" color="#D4AF37" />
         </View>
       ) : (
         <FlatList
@@ -545,8 +836,10 @@ export default function ExploreScreen() {
           renderItem={renderMatch}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContainer}
+          ListHeaderComponent={showFilters ? renderFilters() : null}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
+              <Ionicons name="search-outline" size={64} color="#D4AF37" style={{ marginBottom: 16 }} />
               <Text style={styles.emptyText}>Aucune partie disponible</Text>
               <Text style={styles.emptySubtext}>
                 Essayez d'ajuster vos filtres ou créez une nouvelle partie
@@ -555,7 +848,7 @@ export default function ExploreScreen() {
           }
         />
       )}
-    </View>
+    </ImageBackground>
   );
 }
 
@@ -572,30 +865,41 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 16,
   },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: 'white',
+    color: '#FFFFFF',
   },
   filterToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: 'rgba(0,102,255,0.2)',
+    backgroundColor: '#1A1A1A',
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#0066FF',
+    borderWidth: 0.8,
+    borderColor: '#D4AF37',
   },
   filterToggleText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0066FF',
+    color: '#D4AF37',
   },
   filtersContainer: {
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: '#1A1A1A',
+    marginHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 16,
+    borderRadius: 16,
+    borderWidth: 0.8,
+    borderColor: '#D4AF37',
   },
   filterSection: {
     marginBottom: 24,
@@ -603,7 +907,7 @@ const styles = StyleSheet.create({
   filterLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'white',
+    color: '#D4AF37',
     marginBottom: 16,
   },
   rangeValueContainer: {
@@ -618,58 +922,58 @@ const styles = StyleSheet.create({
   },
   rangeValueLabel: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.6)',
+    color: '#AAAAAA',
     marginBottom: 4,
   },
   rangeValue: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#00D9C0',
+    color: '#D4AF37',
   },
   rangeValueSeparator: {
     fontSize: 24,
     fontWeight: '700',
-    color: 'rgba(255,255,255,0.3)',
+    color: '#666666',
   },
   rangeSlider: {
-    width: width - 80,
+    width: '100%',
     height: 40,
-    alignSelf: 'center',
+    alignSelf: 'stretch',
   },
   thumb: {
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#0066FF',
+    backgroundColor: '#D4AF37',
     borderWidth: 2,
-    borderColor: 'white',
+    borderColor: '#FFFFFF',
   },
   rail: {
     flex: 1,
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: '#666666',
   },
   railSelected: {
     height: 4,
-    backgroundColor: '#00D9C0',
+    backgroundColor: '#D4AF37',
     borderRadius: 2,
   },
   slider: {
-    width: width - 80,
+    width: '100%',
     height: 40,
-    alignSelf: 'center',
+    alignSelf: 'stretch',
   },
   sliderLabels: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: width - 80,
+    width: '100%',
     marginTop: 8,
-    alignSelf: 'center',
+    alignSelf: 'stretch',
   },
   sliderLabel: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.5)',
+    color: '#AAAAAA',
   },
   distanceValueContainer: {
     alignItems: 'center',
@@ -678,51 +982,56 @@ const styles = StyleSheet.create({
   distanceValue: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#0066FF',
+    color: '#D4AF37',
   },
   distanceSubtext: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.6)',
+    color: '#AAAAAA',
     marginTop: 4,
   },
   distanceNote: {
-    backgroundColor: 'rgba(0,102,255,0.1)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(212, 175, 55,0.1)',
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(0,102,255,0.3)',
+    borderColor: 'rgba(212, 175, 55,0.3)',
   },
   distanceNoteText: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.7)',
-    textAlign: 'center',
+    color: '#AAAAAA',
+    flex: 1,
   },
   statusButtonsContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
     gap: 8,
     marginTop: 12,
   },
   statusButton: {
-    flex: 1,
+    width: '48%',
     paddingVertical: 10,
     paddingHorizontal: 12,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: '#1A1A1A',
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 0.8,
+    borderColor: '#D4AF37',
     alignItems: 'center',
   },
   statusButtonActive: {
-    backgroundColor: '#0066FF',
-    borderColor: '#0066FF',
+    backgroundColor: '#D4AF37',
+    borderColor: '#D4AF37',
   },
   statusButtonText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.7)',
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
   statusButtonTextActive: {
-    color: 'white',
+    color: '#000000',
   },
   loadingContainer: {
     flex: 1,
@@ -733,12 +1042,12 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   matchCard: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: '#1A1A1A',
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 0.8,
+    borderColor: '#D4AF37',
   },
   matchHeader: {
     flexDirection: 'row',
@@ -747,7 +1056,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
+    borderBottomColor: '#D4AF37',
   },
   matchDateContainer: {
     flex: 1,
@@ -755,26 +1064,26 @@ const styles = StyleSheet.create({
   matchDate: {
     fontSize: 18,
     fontWeight: '700',
-    color: 'white',
+    color: '#FFFFFF',
     marginBottom: 4,
   },
   matchTime: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#0066FF',
+    color: '#D4AF37',
   },
   matchSpotsContainer: {
     alignItems: 'flex-end',
   },
   matchSpotsLabel: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.6)',
+    color: '#AAAAAA',
     marginBottom: 4,
   },
   matchSpots: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#00D9C0',
+    color: '#D4AF37',
   },
   matchSpotsFull: {
     color: '#FF4444',
@@ -788,18 +1097,17 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   matchInfoIcon: {
-    fontSize: 16,
     marginRight: 8,
-    width: 20,
+    width: 24,
   },
   matchInfoText: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
+    color: '#FFFFFF',
     flex: 1,
   },
   matchDistance: {
     fontSize: 12,
-    color: '#00D9C0',
+    color: '#D4AF37',
     marginTop: 2,
     fontWeight: '600',
   },
@@ -807,43 +1115,95 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
+    borderTopColor: '#D4AF37',
   },
   participantsLabel: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.6)',
+    color: '#AAAAAA',
     marginBottom: 10,
   },
   participantsAvatars: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    alignItems: 'flex-start',
+    justifyContent: 'space-around',
   },
   avatarWrapper: {
     position: 'relative',
   },
+  avatarWithInfo: {
+    alignItems: 'center',
+    gap: 2,
+    width: 70,
+  },
+  avatarName: {
+    fontSize: 11,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  avatarLevel: {
+    fontSize: 10,
+    color: '#AAAAAA',
+    textAlign: 'center',
+  },
   emptyAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderWidth: 2,
-    borderColor: 'white',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(212, 175, 55,0.1)',
+    borderWidth: 0.8,
+    borderColor: '#D4AF37',
     borderStyle: 'dashed',
     justifyContent: 'center',
     alignItems: 'center',
   },
   emptyAvatarText: {
     fontSize: 20,
-    color: 'rgba(255,255,255,0.4)',
+    color: '#D4AF37',
     fontWeight: '600',
   },
   matchFooter: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  footerBadges: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  badgeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#1A1A1A',
+    borderWidth: 0.8,
+    borderColor: '#D4AF37',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  badgeCount: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#D4AF37',
+  },
+  badgeLabel: {
+    fontSize: 10,
+    color: '#AAAAAA',
+  },
+  chatButton: {
+    width: 44,
+    height: 44,
+    backgroundColor: '#1A1A1A',
+    borderWidth: 0.8,
+    borderColor: '#D4AF37',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   joinButton: {
-    backgroundColor: '#0066FF',
+    backgroundColor: '#D4AF37',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
@@ -851,7 +1211,7 @@ const styles = StyleSheet.create({
   joinButtonText: {
     fontSize: 16,
     fontWeight: '700',
-    color: 'white',
+    color: '#000000',
   },
   emptyContainer: {
     flex: 1,
@@ -862,12 +1222,16 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.7)',
+    color: '#FFFFFF',
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.5)',
+    color: '#AAAAAA',
     textAlign: 'center',
+    paddingHorizontal: 40,
   },
 });
+
+
+

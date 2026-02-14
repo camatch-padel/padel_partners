@@ -1,7 +1,17 @@
 import { supabase } from '@/constants/supabase';
+import Logo from '@/components/Logo';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 export default function AuthScreen() {
   const [email, setEmail] = useState('');
@@ -15,7 +25,7 @@ export default function AuthScreen() {
     if (error) {
       Alert.alert('Erreur', error.message);
     } else {
-      Alert.alert('Succès', 'Compte créé ! Vérifiez vos emails.');
+      Alert.alert('Succes', 'Compte cree ! Verifiez vos emails.');
       setIsSignUp(false);
     }
     setLoading(false);
@@ -30,85 +40,92 @@ export default function AuthScreen() {
     setLoading(false);
   };
 
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      Alert.alert('Email requis', 'Veuillez saisir votre adresse email avant de reinitialiser votre mot de passe.');
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
+    if (error) {
+      Alert.alert('Erreur', error.message);
+    } else {
+      Alert.alert(
+        'Email envoye',
+        'Si un compte existe avec cette adresse, vous recevrez un email pour reinitialiser votre mot de passe.'
+      );
+    }
+    setLoading(false);
+  };
+
   return (
-    <View style={styles.container}>
-      {/* Logo */}
-      <View style={styles.logoWrapper}>
-        <View style={styles.logo}>
-          <Svg width="45" height="60" viewBox="0 0 45 60" fill="none">
-            <Path 
-              d="M22.5 0C10.08 0 0 10.08 0 22.5C0 35.625 22.5 60 22.5 60C22.5 60 45 35.625 45 22.5C45 10.08 34.92 0 22.5 0Z" 
-              fill="#0066FF"
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
+    >
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.logoWrapper}>
+          <Logo size="large" showText={true} />
+        </View>
+
+        <View style={styles.loginForm}>
+          <Text style={styles.formTitle}>{isSignUp ? 'Creer un compte' : 'Connexion'}</Text>
+
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="exemple@email.com"
+              placeholderTextColor="rgba(255, 255, 255, 0.4)"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
             />
-            <Circle cx="22.5" cy="22.5" r="10" fill="white"/>
-            <Circle cx="22.5" cy="22.5" r="6" fill="#00D9C0"/>
-          </Svg>
-          <Text style={styles.logoText}>Linkerra</Text>
-        </View>
-      </View>
+          </View>
 
-      {/* Formulaire */}
-      <View style={styles.loginForm}>
-        <Text style={styles.formTitle}>
-          {isSignUp ? 'Créer un compte' : 'Connexion'}
-        </Text>
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Mot de passe</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="��������"
+              placeholderTextColor="rgba(255, 255, 255, 0.4)"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+          </View>
 
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="exemple@email.com"
-            placeholderTextColor="rgba(255, 255, 255, 0.4)"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-        </View>
-
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Mot de passe</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="••••••••"
-            placeholderTextColor="rgba(255, 255, 255, 0.4)"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
-        </View>
-
-        <Pressable
-          style={({ pressed }) => [
-            styles.btnLogin,
-            pressed && styles.btnLoginPressed
-          ]}
-          onPress={isSignUp ? handleSignUp : handleSignIn}
-          disabled={loading}
-        >
-          <Text style={styles.btnLoginText}>
-            {loading ? '...' : isSignUp ? "S'inscrire" : 'Se connecter'}
-          </Text>
-        </Pressable>
-
-        {!isSignUp && (
-          <Pressable style={styles.forgotPassword}>
-            <Text style={styles.forgotPasswordText}>Mot de passe oublié ?</Text>
+          <Pressable
+            style={({ pressed }) => [styles.btnLogin, pressed && styles.btnLoginPressed]}
+            onPress={isSignUp ? handleSignUp : handleSignIn}
+            disabled={loading}
+          >
+            <Text style={styles.btnLoginText}>{loading ? '...' : isSignUp ? "S'inscrire" : 'Se connecter'}</Text>
           </Pressable>
-        )}
 
-        <View style={styles.signupLink}>
-          <Text style={styles.signupLinkText}>
-            {isSignUp ? 'Déjà un compte ? ' : 'Pas encore de compte ? '}
-          </Text>
-          <Pressable onPress={() => setIsSignUp(!isSignUp)}>
-            <Text style={styles.signupLinkButton}>
-              {isSignUp ? 'Se connecter' : "S'inscrire"}
-            </Text>
-          </Pressable>
+          {!isSignUp && (
+            <Pressable style={styles.forgotPassword} onPress={handleForgotPassword}>
+              <Text style={styles.forgotPasswordText}>Mot de passe oublie ?</Text>
+            </Pressable>
+          )}
+
+          <View style={styles.signupLink}>
+            <Text style={styles.signupLinkText}>{isSignUp ? 'Deja un compte ? ' : 'Pas encore de compte ? '}</Text>
+            <Pressable onPress={() => setIsSignUp(!isSignUp)}>
+              <Text style={styles.signupLinkButton}>{isSignUp ? 'Se connecter' : "S'inscrire"}</Text>
+            </Pressable>
+          </View>
         </View>
-      </View>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -116,33 +133,28 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000000',
-    justifyContent: 'center',
+  },
+  scroll: {
+    flex: 1,
+    width: '100%',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 32,
+    paddingBottom: 28,
   },
   logoWrapper: {
-    marginBottom: 50,
-  },
-  logo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 15,
-  },
-  logoText: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: 'white',
-    letterSpacing: -0.5,
-  },
-  logoPadel: {
-    color: '#0066FF',
+    marginBottom: 12,
   },
   loginForm: {
     width: '100%',
     maxWidth: 400,
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: 16,
-    padding: 40,
+    padding: 32,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
