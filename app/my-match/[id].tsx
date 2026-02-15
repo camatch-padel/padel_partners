@@ -8,6 +8,7 @@ import {
   Alert,
   Dimensions,
   FlatList,
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -1218,7 +1219,7 @@ export default function MyMatchDetailScreen() {
   const visibleTabs = TABS.filter(t => t.showWhen(match?.status || '', isCreator));
 
   return (
-    <View style={styles.container}>
+    <ImageBackground source={require('@/assets/images/piste-noire.png')} resizeMode="cover" style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
@@ -1250,7 +1251,7 @@ export default function MyMatchDetailScreen() {
 
       {/* Contenu de l'onglet */}
       {renderActiveTab()}
-    </View>
+    </ImageBackground>
   );
 }
 
@@ -1277,7 +1278,7 @@ const styles = StyleSheet.create({
   tabItem: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
     paddingVertical: 10, borderRadius: 12,
-    backgroundColor: '#1A1A1A', borderWidth: 2, borderColor: '#D4AF37',
+    backgroundColor: '#1A1A1A', borderWidth: 0.8, borderColor: '#D4AF37',
   },
   tabItemActive: { backgroundColor: '#D4AF37' },
 
@@ -1289,7 +1290,7 @@ const styles = StyleSheet.create({
 
   // Info card
   infoCard: {
-    backgroundColor: '#1A1A1A', borderWidth: 2, borderColor: '#D4AF37',
+    backgroundColor: '#1A1A1A', borderWidth: 0.8, borderColor: '#D4AF37',
     borderRadius: 12, padding: 16, gap: 12,
   },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -1307,7 +1308,7 @@ const styles = StyleSheet.create({
   participantsList: { gap: 8 },
   participantItem: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#1A1A1A', borderWidth: 2, borderColor: '#D4AF37',
+    backgroundColor: '#1A1A1A', borderWidth: 0.8, borderColor: '#D4AF37',
     borderRadius: 12, padding: 12,
   },
   participantInfo: { flex: 1 },
@@ -1321,7 +1322,7 @@ const styles = StyleSheet.create({
   // Requests
   requestItem: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#1A1A1A', borderWidth: 2, borderColor: '#D4AF37',
+    backgroundColor: '#1A1A1A', borderWidth: 0.8, borderColor: '#D4AF37',
     borderRadius: 12, padding: 16, marginBottom: 12,
   },
   requestInfo: { flex: 1 },
@@ -1334,7 +1335,7 @@ const styles = StyleSheet.create({
   acceptButton: {
     width: 40, height: 40, borderRadius: 20, backgroundColor: '#333333',
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: '#44DD44',
+    borderWidth: 0.8, borderColor: '#44DD44',
   },
   acceptButtonActive: {
     backgroundColor: '#44DD44',
@@ -1342,7 +1343,7 @@ const styles = StyleSheet.create({
   rejectButton: {
     width: 40, height: 40, borderRadius: 20, backgroundColor: '#333333',
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: '#FF4444',
+    borderWidth: 0.8, borderColor: '#FF4444',
   },
   rejectButtonActive: {
     backgroundColor: '#FF4444',
@@ -1351,7 +1352,7 @@ const styles = StyleSheet.create({
   // Waitlist
   waitlistItem: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#1A1A1A', borderWidth: 2, borderColor: '#D4AF37',
+    backgroundColor: '#1A1A1A', borderWidth: 0.8, borderColor: '#D4AF37',
     borderRadius: 12, padding: 16, marginBottom: 12,
   },
   positionBadge: {
@@ -1387,7 +1388,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   courtZoneFilled: { backgroundColor: 'rgba(212, 175, 55,0.12)' },
-  courtZoneSelecting: { backgroundColor: 'rgba(212, 175, 55,0.25)', borderWidth: 2, borderColor: '#D4AF37', borderStyle: 'dashed' },
+  courtZoneSelecting: { backgroundColor: 'rgba(212, 175, 55,0.25)', borderWidth: 0.8, borderColor: '#D4AF37', borderStyle: 'dashed' },
   courtPlayer: { alignItems: 'center', gap: 4 },
   courtPlayerName: { fontSize: 12, color: '#FFFFFF', fontWeight: '600' },
   courtPlaceholder: { fontSize: 24, color: 'rgba(255,255,255,0.3)', fontWeight: '700' },
@@ -1397,14 +1398,14 @@ const styles = StyleSheet.create({
 
   // Player selection (inline, web-compatible)
   playerSelectionContainer: {
-    backgroundColor: '#1A1A1A', borderWidth: 2, borderColor: '#D4AF37',
+    backgroundColor: '#1A1A1A', borderWidth: 0.8, borderColor: '#D4AF37',
     borderRadius: 12, padding: 16, marginBottom: 20,
   },
   playerSelectionTitle: { fontSize: 16, fontWeight: '700', color: '#D4AF37', textAlign: 'center', marginBottom: 12 },
   playerSelectionRow: { flexDirection: 'row', justifyContent: 'center', gap: 16, flexWrap: 'wrap' },
   playerSelectionCard: {
     alignItems: 'center', gap: 6, padding: 12,
-    backgroundColor: '#000000', borderWidth: 2, borderColor: '#D4AF37',
+    backgroundColor: '#000000', borderWidth: 0.8, borderColor: '#D4AF37',
     borderRadius: 12, minWidth: 80,
   },
   playerSelectionName: { fontSize: 13, color: '#FFFFFF', fontWeight: '600' },
@@ -1434,7 +1435,7 @@ const styles = StyleSheet.create({
   setRowLabel: { fontSize: 16, fontWeight: '600', color: '#AAAAAA', width: 50 },
   setInputs: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   scoreInput: {
-    width: 56, height: 48, backgroundColor: '#1A1A1A', borderWidth: 2,
+    width: 56, height: 48, backgroundColor: '#1A1A1A', borderWidth: 0.8,
     borderColor: '#D4AF37', borderRadius: 12, textAlign: 'center',
     fontSize: 20, fontWeight: '700', color: '#FFFFFF',
   },
@@ -1449,7 +1450,7 @@ const styles = StyleSheet.create({
 
   // Winner
   winnerSection: {
-    alignItems: 'center', backgroundColor: '#1A1A1A', borderWidth: 2,
+    alignItems: 'center', backgroundColor: '#1A1A1A', borderWidth: 0.8,
     borderColor: '#D4AF37', borderRadius: 12, padding: 20, marginBottom: 20,
   },
   winnerTitle: { fontSize: 18, fontWeight: '700', color: '#D4AF37', marginTop: 8, marginBottom: 12 },
@@ -1459,13 +1460,13 @@ const styles = StyleSheet.create({
 
   winnerBanner: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#1A1A1A', borderWidth: 2, borderColor: '#D4AF37',
+    backgroundColor: '#1A1A1A', borderWidth: 0.8, borderColor: '#D4AF37',
     borderRadius: 12, padding: 12, marginTop: 16, marginBottom: 16,
   },
   winnerBannerText: { fontSize: 16, fontWeight: '700', color: '#D4AF37' },
 
   scoresSection: {
-    backgroundColor: '#1A1A1A', borderWidth: 2, borderColor: '#D4AF37',
+    backgroundColor: '#1A1A1A', borderWidth: 0.8, borderColor: '#D4AF37',
     borderRadius: 12, padding: 16, marginBottom: 20,
   },
   scoreRow: {
@@ -1487,7 +1488,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'center', gap: 16, marginBottom: 24,
   },
   ratingPlayerCard: {
-    alignItems: 'center', backgroundColor: '#1A1A1A', borderWidth: 2,
+    alignItems: 'center', backgroundColor: '#1A1A1A', borderWidth: 0.8,
     borderColor: '#333', borderRadius: 12, padding: 12, width: (width - 80) / 3,
   },
   ratingPlayerSelected: { borderColor: '#D4AF37', backgroundColor: '#1A1A1A' },
@@ -1515,7 +1516,7 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: { fontSize: 16, fontWeight: '700', color: '#000000' },
   secondaryButton: {
-    flex: 1, backgroundColor: '#1A1A1A', borderWidth: 2, borderColor: '#D4AF37',
+    flex: 1, backgroundColor: '#1A1A1A', borderWidth: 0.8, borderColor: '#D4AF37',
     borderRadius: 12, paddingVertical: 14, alignItems: 'center',
   },
   secondaryButtonText: { fontSize: 16, fontWeight: '600', color: '#D4AF37' },
@@ -1532,7 +1533,7 @@ const styles = StyleSheet.create({
   chatMessageItem: { flexDirection: 'row', marginBottom: 16, gap: 8 },
   chatOwnMessageItem: { flexDirection: 'row-reverse' },
   chatBubble: {
-    maxWidth: '75%', backgroundColor: '#1A1A1A', borderWidth: 2,
+    maxWidth: '75%', backgroundColor: '#1A1A1A', borderWidth: 0.8,
     borderColor: '#D4AF37', borderRadius: 12, padding: 12,
   },
   chatOwnBubble: { backgroundColor: '#D4AF37', borderColor: '#D4AF37' },
@@ -1546,7 +1547,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1A1A1A', borderTopWidth: 1, borderTopColor: '#D4AF37', gap: 12,
   },
   chatTextInput: {
-    flex: 1, backgroundColor: '#000000', borderWidth: 2, borderColor: '#D4AF37',
+    flex: 1, backgroundColor: '#000000', borderWidth: 0.8, borderColor: '#D4AF37',
     borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12,
     fontSize: 16, color: '#FFFFFF', maxHeight: 100,
   },

@@ -442,7 +442,7 @@ const styles = StyleSheet.create({
   messageBubble: {
     maxWidth: '75%',
     backgroundColor: '#1A1A1A',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     padding: 12,
@@ -484,7 +484,7 @@ const styles = StyleSheet.create({
   messageTextInput: {
     flex: 1,
     backgroundColor: '#000000',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     paddingHorizontal: 16,

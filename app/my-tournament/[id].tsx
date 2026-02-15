@@ -8,6 +8,7 @@ import {
   Alert,
   Dimensions,
   FlatList,
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -622,7 +623,7 @@ export default function MyTournamentDetailScreen() {
   const visibleTabs = TABS.filter((t) => t.showWhen(tournament?.status || '', isCreator));
 
   return (
-    <View style={styles.container}>
+    <ImageBackground source={require('@/assets/images/piste-noire.png')} resizeMode="cover" style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
@@ -663,7 +664,7 @@ export default function MyTournamentDetailScreen() {
       </View>
 
       {renderActiveTab()}
-    </View>
+    </ImageBackground>
   );
 }
 
@@ -703,7 +704,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 12,
     backgroundColor: '#1A1A1A',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
   },
   tabItemActive: { backgroundColor: '#D4AF37' },
@@ -716,7 +717,7 @@ const styles = StyleSheet.create({
   // Info card
   infoCard: {
     backgroundColor: '#1A1A1A',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     padding: 16,
@@ -745,7 +746,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     backgroundColor: '#1A1A1A',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     padding: 12,
@@ -768,7 +769,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     backgroundColor: '#1A1A1A',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     padding: 16,
@@ -788,7 +789,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#333333',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#44DD44',
   },
   acceptButtonActive: { backgroundColor: '#44DD44' },
@@ -799,7 +800,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#333333',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#FF4444',
   },
   rejectButtonActive: { backgroundColor: '#FF4444' },
@@ -830,7 +831,7 @@ const styles = StyleSheet.create({
   secondaryButton: {
     flex: 1,
     backgroundColor: '#1A1A1A',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     paddingVertical: 14,
@@ -849,7 +850,7 @@ const styles = StyleSheet.create({
   chatBubble: {
     maxWidth: '75%',
     backgroundColor: '#1A1A1A',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     padding: 12,
@@ -872,7 +873,7 @@ const styles = StyleSheet.create({
   chatTextInput: {
     flex: 1,
     backgroundColor: '#000000',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     paddingHorizontal: 16,

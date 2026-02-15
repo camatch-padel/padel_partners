@@ -757,7 +757,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
   },
   dateButtonIcon: {
@@ -772,7 +772,7 @@ const styles = StyleSheet.create({
   calendarContainer: {
     backgroundColor: '#1A1A1A',
     borderRadius: 16,
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     overflow: 'hidden',
     padding: 8,
@@ -786,7 +786,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: '#1A1A1A',
     borderRadius: 12,
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
   },
   selectedDateText: {
@@ -810,7 +810,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1A1A1A',
     borderRadius: 12,
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
   },
   timeSlotSelected: {
@@ -926,7 +926,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1A1A1A',
     borderRadius: 16,
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
   },
   formatButtonSelected: {
@@ -951,7 +951,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1A1A1A',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     paddingHorizontal: 16,
@@ -979,7 +979,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1A1A1A',
     borderRadius: 12,
     marginBottom: 12,
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
   },
   clubItemSelected: {
@@ -1016,7 +1016,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1A1A1A',
     borderRadius: 16,
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
   },
   visibilityButtonSelected: {
@@ -1052,7 +1052,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1A1A1A',
     borderRadius: 12,
     marginBottom: 8,
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
   },
   groupItemSelected: {
@@ -1133,7 +1133,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderRadius: 12,
     backgroundColor: '#1A1A1A',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
   },
   footerButtonNext: {

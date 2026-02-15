@@ -21,7 +21,6 @@ interface PlayerSearchResult {
   username: string;
   firstname: string;
   lastname: string;
-  city: string;
   declared_level: number;
   avatar_url: string | null;
 }
@@ -52,7 +51,7 @@ export default function CreateGroupScreen() {
     try {
       const { data, error } = await supabase
         .from('Profiles')
-        .select('id, username, firstname, lastname, city, declared_level, avatar_url')
+        .select('id, username, firstname, lastname, declared_level, avatar_url')
         .or(`username.ilike.%${query}%,firstname.ilike.%${query}%,lastname.ilike.%${query}%`)
         .limit(10);
 
@@ -147,7 +146,7 @@ export default function CreateGroupScreen() {
     try {
       const { data, error } = await supabase
         .from('Profiles')
-        .select('id, username, firstname, lastname, city, declared_level, avatar_url')
+        .select('id, username, firstname, lastname, declared_level, avatar_url')
         .in('id', formData.memberIds);
 
       if (error) throw error;
@@ -245,7 +244,7 @@ export default function CreateGroupScreen() {
                       {player.firstname} {player.lastname}
                     </Text>
                     <Text style={styles.playerDetails}>
-                      @{player.username} · {player.city} · Niv. {player.declared_level.toFixed(1)}
+                      @{player.username} · Niv. {player.declared_level.toFixed(1)}
                     </Text>
                   </View>
                   <Ionicons name="add-circle" size={24} color="#D4AF37" />
@@ -273,7 +272,7 @@ export default function CreateGroupScreen() {
                       {player.firstname} {player.lastname}
                     </Text>
                     <Text style={styles.playerDetails}>
-                      {player.city} · Niv. {player.declared_level.toFixed(1)}
+                      Niv. {player.declared_level.toFixed(1)}
                     </Text>
                   </View>
                   <Pressable onPress={() => removeMember(player.id)}>
@@ -371,7 +370,7 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: '#1A1A1A',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     paddingHorizontal: 16,
@@ -393,7 +392,7 @@ const styles = StyleSheet.create({
     width: '18%',
     aspectRatio: 1,
     backgroundColor: '#1A1A1A',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     alignItems: 'center',
@@ -417,7 +416,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1A1A1A',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     paddingHorizontal: 16,
@@ -434,7 +433,7 @@ const styles = StyleSheet.create({
   searchResults: {
     marginTop: 12,
     backgroundColor: '#1A1A1A',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     padding: 8,
@@ -472,7 +471,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1A1A1A',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     padding: 12,

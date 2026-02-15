@@ -26,7 +26,7 @@ import {
 export default function TournamentExploreScreen() {
   const [tournaments, setTournaments] = useState<TournamentWithDistance[]>([]);
   const [loading, setLoading] = useState(true);
-  const [locationSource, setLocationSource] = useState<'gps' | 'city' | 'none'>('none');
+  const [locationSource, setLocationSource] = useState<'gps' | 'club' | 'none'>('none');
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   // Filtres
@@ -76,27 +76,28 @@ export default function TournamentExploreScreen() {
         return;
       }
 
+      // Fallback : coordonnées du club du profil
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         const { data: profile } = await supabase
           .from('Profiles')
-          .select('city')
+          .select('court_id')
           .eq('id', session.user.id)
           .single();
 
-        if (profile?.city) {
-          const { data: cityData } = await supabase
-            .from('cities')
+        if (profile?.court_id) {
+          const { data: courtData } = await supabase
+            .from('courts')
             .select('latitude, longitude')
-            .ilike('name', profile.city)
+            .eq('id', profile.court_id)
             .single();
 
-          if (cityData) {
+          if (courtData?.latitude && courtData?.longitude) {
             setUserCoords({
-              lat: Number(cityData.latitude),
-              lng: Number(cityData.longitude),
+              lat: Number(courtData.latitude),
+              lng: Number(courtData.longitude),
             });
-            setLocationSource('city');
+            setLocationSource('club');
             return;
           }
         }
@@ -497,8 +498,8 @@ export default function TournamentExploreScreen() {
           {locationSource === 'gps' && (
             <Text style={styles.distanceSubtext}>depuis votre position</Text>
           )}
-          {locationSource === 'city' && (
-            <Text style={styles.distanceSubtext}>depuis votre ville</Text>
+          {locationSource === 'club' && (
+            <Text style={styles.distanceSubtext}>depuis votre club</Text>
           )}
         </View>
 

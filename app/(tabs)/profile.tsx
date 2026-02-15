@@ -28,7 +28,6 @@ export default function ProfileScreen() {
   const [username, setUsername] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [city, setCity] = useState('');
   const [level, setLevel] = useState(5.0);
   const [courtId, setCourtId] = useState<string | null>(null);
   const [courts, setCourts] = useState<Court[]>([]);
@@ -58,7 +57,6 @@ export default function ProfileScreen() {
           setUsername(data.username || '');
           setFirstName(data.firstname || '');
           setLastName(data.lastname || '');
-          setCity(data.city || '');
           setLevel(data.declared_level || 5.0);
           setCourtId(data.court_id || null);
           setAvatarUrl(data.avatar_url || null);
@@ -165,8 +163,8 @@ export default function ProfileScreen() {
   };
 
   const handleCreateOrUpdate = async () => {
-    if (!username || !firstName || !lastName || !city) {
-      Alert.alert('Erreur', 'Tous les champs sont obligatoires');
+    if (!username || !firstName || !lastName) {
+      Alert.alert('Erreur', 'Tous les champs obligatoires doivent être remplis');
       return;
     }
 
@@ -192,7 +190,6 @@ export default function ProfileScreen() {
             username,
             firstname: firstName,
             lastname: lastName,
-            city,
             declared_level: levelNum,
             court_id: courtId,
           })
@@ -201,8 +198,10 @@ export default function ProfileScreen() {
         if (error) {
           Alert.alert('Erreur', error.message);
         } else {
-          Alert.alert('Succès', 'Profil mis à jour !');
           await loadProfile();
+          Alert.alert('Succès', 'Profil mis à jour !', [
+            { text: 'OK', onPress: () => router.replace('/(tabs)') }
+          ]);
         }
       } else {
         // Création
@@ -211,7 +210,6 @@ export default function ProfileScreen() {
           username,
           firstname: firstName,
           lastname: lastName,
-          city,
           declared_level: levelNum,
           community_level: levelNum,
           community_level_votes: 0,
@@ -328,15 +326,6 @@ export default function ProfileScreen() {
             placeholderTextColor="#666666"
             value={username}
             onChangeText={setUsername}
-          />
-
-          <Text style={styles.label}>Ville *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Ex: Paris"
-            placeholderTextColor="#666666"
-            value={city}
-            onChangeText={setCity}
           />
 
           <Text style={styles.label}>Club (optionnel)</Text>
@@ -529,7 +518,7 @@ const styles = StyleSheet.create({
   input: {
     width: '100%',
     height: 50,
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     paddingHorizontal: 16,
@@ -564,7 +553,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 20,
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
   },
   logoutButtonText: {
@@ -576,7 +565,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1A1A1A',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     padding: 14,
@@ -598,7 +587,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     backgroundColor: '#1A1A1A',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     padding: 14,
@@ -615,7 +604,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1A1A1A',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     paddingHorizontal: 16,
@@ -636,7 +625,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1A1A1A',
     borderRadius: 12,
     marginBottom: 8,
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
   },
   clubItemSelected: {

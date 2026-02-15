@@ -19,7 +19,6 @@ export interface GroupMemberWithProfile {
     username: string;
     firstname: string;
     lastname: string;
-    city: string;
     declared_level: number;
     avatar_url: string | null;
   };

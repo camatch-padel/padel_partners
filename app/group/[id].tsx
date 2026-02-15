@@ -112,7 +112,6 @@ export default function GroupDetailsScreen() {
             username,
             firstname,
             lastname,
-            city,
             declared_level,
             avatar_url
           )
@@ -431,7 +430,7 @@ export default function GroupDetailsScreen() {
 
       const { data, error } = await supabase
         .from('Profiles')
-        .select('id, username, firstname, lastname, city, declared_level, avatar_url')
+        .select('id, username, firstname, lastname, declared_level, avatar_url')
         .or(`username.ilike.%${query}%,firstname.ilike.%${query}%,lastname.ilike.%${query}%`)
         .not('id', 'in', `(${memberIds.join(',')})`)
         .limit(10);
@@ -873,7 +872,7 @@ export default function GroupDetailsScreen() {
                       {player.firstname} {player.lastname}
                     </Text>
                     <Text style={styles.playerDetails}>
-                      @{player.username} · {player.city} · Niv. {player.declared_level.toFixed(1)}
+                      @{player.username} · Niv. {player.declared_level.toFixed(1)}
                     </Text>
                   </View>
                   <Ionicons name="add-circle" size={24} color="#D4AF37" />
@@ -907,7 +906,7 @@ export default function GroupDetailsScreen() {
                 )}
               </View>
               <Text style={styles.memberDetails}>
-                @{member.profile?.username} · {member.profile?.city}
+                @{member.profile?.username}
               </Text>
               <Text style={styles.memberLevel}>
                 Niveau {member.profile?.declared_level.toFixed(1)}
@@ -1118,7 +1117,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 10,
     backgroundColor: '#1A1A1A',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
   },
@@ -1150,7 +1149,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1A1A1A',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     paddingHorizontal: 16,
@@ -1167,7 +1166,7 @@ const styles = StyleSheet.create({
   searchResults: {
     marginTop: 8,
     backgroundColor: '#1A1A1A',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     padding: 8,
@@ -1199,7 +1198,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1A1A1A',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     padding: 16,
@@ -1262,7 +1261,7 @@ const styles = StyleSheet.create({
   messageBubble: {
     maxWidth: '75%',
     backgroundColor: '#1A1A1A',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     padding: 12,
@@ -1304,7 +1303,7 @@ const styles = StyleSheet.create({
   messageTextInput: {
     flex: 1,
     backgroundColor: '#000000',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     paddingHorizontal: 16,
@@ -1597,7 +1596,7 @@ const styles = StyleSheet.create({
   },
   itemCard: {
     backgroundColor: '#1A1A1A',
-    borderWidth: 2,
+    borderWidth: 0.8,
     borderColor: '#D4AF37',
     borderRadius: 12,
     padding: 14,
