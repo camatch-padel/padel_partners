@@ -1,23 +1,23 @@
 {
   "expo": {
-    "name": "padel-partners",
-    "slug": "padel-partners",
+    "name": "CaMatch",
+    "slug": "camatch",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "padelpartners",
+    "scheme": "camatch",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.padelpartners.app",
+      "bundleIdentifier": "com.camatch.app",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Nous utilisons votre position pour trouver les parties et tournois près de chez vous.",
         "NSPhotoLibraryUsageDescription": "Accédez à vos photos pour choisir une photo de profil."
       }
     },
     "android": {
-      "package": "com.padelpartners.app",
+      "package": "com.camatch.app",
       "permissions": [
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION"
