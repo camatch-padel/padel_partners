@@ -1,13 +1,19 @@
 import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback } from 'react';
+import { Platform } from 'react-native';
 import { supabase } from '@/constants/supabase';
 import { useFocusEffect } from '@react-navigation/native';
 import { ProfileProvider, useProfile } from '@/contexts/ProfileContext';
+import { NotificationsProvider, useNotifications } from '@/contexts/NotificationsContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function TabLayoutInner() {
   const { hasProfile, setHasProfile } = useProfile();
+  const { unreadCount } = useNotifications();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const bottomInset = Platform.OS === 'android' ? insets.bottom : 0;
 
   useFocusEffect(
     useCallback(() => {
@@ -20,7 +26,7 @@ function TabLayoutInner() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         const { data } = await supabase
-          .from('Profiles')
+          .from('profiles')
           .select('id')
           .eq('id', session.user.id)
           .single();
@@ -48,9 +54,9 @@ function TabLayoutInner() {
               backgroundColor: 'rgba(0,0,0,0.15)',
               borderTopWidth: 0.8,
               borderTopColor: '#D4AF37',
-              height: 68,
+              height: 68 + bottomInset,
               paddingTop: 6,
-              paddingBottom: 8,
+              paddingBottom: 8 + bottomInset,
               elevation: 0,
             },
         tabBarActiveTintColor: '#D4AF37',
@@ -97,12 +103,33 @@ function TabLayoutInner() {
         }}
       />
       <Tabs.Screen
+        name="notifications"
+        options={{
+          title: 'Notifs',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="notifications" size={size} color={color} />
+          ),
+          tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+          tabBarBadgeStyle: {
+            backgroundColor: '#FF4444',
+            color: '#FFFFFF',
+            fontSize: 10,
+            fontWeight: '700',
+            minWidth: 18,
+            height: 18,
+            borderRadius: 9,
+          },
+          href: hasProfile === false ? null : '/(tabs)/notifications',
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profil',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person" size={size} color={color} />
           ),
+          href: null,
         }}
       />
     </Tabs>
@@ -112,9 +139,9 @@ function TabLayoutInner() {
 export default function TabLayout() {
   return (
     <ProfileProvider>
-      <TabLayoutInner />
+      <NotificationsProvider>
+        <TabLayoutInner />
+      </NotificationsProvider>
     </ProfileProvider>
   );
 }
-
-

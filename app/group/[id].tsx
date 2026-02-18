@@ -108,7 +108,7 @@ export default function GroupDetailsScreen() {
           group_id,
           user_id,
           joined_at,
-          profile:Profiles!group_members_user_id_fkey(
+          profile:profiles!group_members_user_id_fkey(
             username,
             firstname,
             lastname,
@@ -135,7 +135,7 @@ export default function GroupDetailsScreen() {
           user_id,
           message,
           created_at,
-          sender:Profiles!group_messages_user_id_fkey(
+          sender:profiles!group_messages_user_id_fkey(
             username,
             firstname,
             lastname,
@@ -170,7 +170,7 @@ export default function GroupDetailsScreen() {
           format,
           level_min,
           duration_minutes,
-          creator:Profiles!matches_creator_id_fkey(id, username, firstname, lastname, avatar_url, declared_level, community_level, community_level_votes),
+          creator:profiles!matches_creator_id_fkey(id, username, firstname, lastname, avatar_url, declared_level, community_level, community_level_votes),
           court:courts(name, city)
         `)
         .eq('group_id', id)
@@ -189,7 +189,7 @@ export default function GroupDetailsScreen() {
         .select(`
           match_id,
           user_id,
-          profile:Profiles!match_participants_user_id_fkey(username, firstname, lastname, avatar_url, declared_level, community_level, community_level_votes)
+          profile:profiles!match_participants_user_id_fkey(username, firstname, lastname, avatar_url, declared_level, community_level, community_level_votes)
         `)
         .in('match_id', matchIds);
 
@@ -267,7 +267,7 @@ export default function GroupDetailsScreen() {
           age_category,
           min_ranking,
           player_position,
-          creator:Profiles!tournaments_creator_id_fkey(id, username, firstname, lastname, avatar_url, declared_level, community_level, community_level_votes),
+          creator:profiles!tournaments_creator_id_fkey(id, username, firstname, lastname, avatar_url, declared_level, community_level, community_level_votes),
           court:courts(name, city)
         `)
         .eq('group_id', id)
@@ -336,7 +336,7 @@ export default function GroupDetailsScreen() {
               user_id,
               message,
               created_at,
-              sender:Profiles!group_messages_user_id_fkey(
+              sender:profiles!group_messages_user_id_fkey(
                 username,
                 firstname,
                 lastname,
@@ -389,7 +389,7 @@ export default function GroupDetailsScreen() {
           user_id,
           message,
           created_at,
-          sender:Profiles!group_messages_user_id_fkey(
+          sender:profiles!group_messages_user_id_fkey(
             username,
             firstname,
             lastname,
@@ -429,7 +429,7 @@ export default function GroupDetailsScreen() {
       const memberIds = members.map(m => m.user_id);
 
       const { data, error } = await supabase
-        .from('Profiles')
+        .from('profiles')
         .select('id, username, firstname, lastname, declared_level, avatar_url')
         .or(`username.ilike.%${query}%,firstname.ilike.%${query}%,lastname.ilike.%${query}%`)
         .not('id', 'in', `(${memberIds.join(',')})`)
@@ -929,7 +929,7 @@ export default function GroupDetailsScreen() {
     <KeyboardAvoidingView
       style={styles.chatContainer}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={100}
+      keyboardVerticalOffset={0}
     >
       {/* Messages */}
       <FlatList

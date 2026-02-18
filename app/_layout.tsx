@@ -3,9 +3,19 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import 'react-native-reanimated';
 import type { Session } from '@supabase/supabase-js';
+import {
+  addNotificationResponseReceivedListener,
+  type NotificationResponse,
+} from 'expo-notifications';
+import type { EventSubscription } from 'expo-modules-core';
+import {
+  registerForPushNotificationsAsync,
+  savePushToken,
+  setupAndroidChannel,
+} from '@/services/pushNotifications';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -17,6 +27,8 @@ export default function RootLayout() {
   const [loading, setLoading] = useState(true);
   const segments = useSegments();
   const router = useRouter();
+
+  const notificationResponseListener = useRef<EventSubscription>(null);
 
   useEffect(() => {
     // Récupère la session au démarrage
@@ -30,8 +42,20 @@ export default function RootLayout() {
       setSession(session);
     });
 
+    // Canal Android
+    setupAndroidChannel();
+
+    // Écouter les taps sur les notifications push
+    notificationResponseListener.current = addNotificationResponseReceivedListener((response: NotificationResponse) => {
+      const data = response.notification.request.content.data;
+      if (data?.url) {
+        router.push(data.url as any);
+      }
+    });
+
     return () => {
       subscription?.unsubscribe();
+      notificationResponseListener.current?.remove();
     };
   }, []);
 
@@ -49,6 +73,17 @@ export default function RootLayout() {
       router.replace('/(tabs)');
     }
   }, [session, segments, loading]);
+
+  // Enregistrer le push token quand l'utilisateur est connecté
+  useEffect(() => {
+    if (!session?.user) return;
+
+    registerForPushNotificationsAsync().then((token) => {
+      if (token) {
+        savePushToken(token);
+      }
+    });
+  }, [session?.user?.id]);
 
   if (loading) return null;
 

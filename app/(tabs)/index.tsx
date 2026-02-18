@@ -8,6 +8,7 @@ import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   ImageBackground,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -50,9 +51,35 @@ interface MyTournament {
   demand_count: number;
 }
 
+interface PlayerStats {
+  totalMatches: number;
+  wins: number;
+  losses: number;
+  leftMatches: number;
+  rightMatches: number;
+}
+
 const getRequiredPlayers = (format: unknown): number => {
   if (format === 4 || format === '4' || format === '2v2') return 4;
   return 2;
+};
+
+const parseMatchEndDate = (dateStr: string, timeSlot: string, durationMinutes: number): Date | null => {
+  const cleanDate = (dateStr || '').split('T')[0];
+  const parts = cleanDate.split('-');
+  if (parts.length !== 3) return null;
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+
+  const timeParts = (timeSlot || '').split(':');
+  const hours = parseInt(timeParts[0], 10) || 0;
+  const minutes = parseInt(timeParts[1], 10) || 0;
+
+  const d = new Date(year, month, day, hours, minutes);
+  if (isNaN(d.getTime())) return null;
+  d.setMinutes(d.getMinutes() + durationMinutes);
+  return d;
 };
 
 function PremiumSearchButton({
@@ -98,6 +125,13 @@ export default function HomeScreen() {
   const [myMatches, setMyMatches] = useState<MyMatch[]>([]);
   const [myGroups, setMyGroups] = useState<GroupWithMembers[]>([]);
   const [myTournaments, setMyTournaments] = useState<MyTournament[]>([]);
+  const [playerStats, setPlayerStats] = useState<PlayerStats>({
+    totalMatches: 0,
+    wins: 0,
+    losses: 0,
+    leftMatches: 0,
+    rightMatches: 0,
+  });
 
   useFocusEffect(
     useCallback(() => {
@@ -105,6 +139,7 @@ export default function HomeScreen() {
       loadMyMatches();
       loadMyGroups();
       loadMyTournaments();
+      loadPlayerStats();
     }, [])
   );
 
@@ -113,7 +148,7 @@ export default function HomeScreen() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         const { data } = await supabase
-          .from('Profiles')
+          .from('profiles')
           .select('*')
           .eq('id', session.user.id)
           .single();
@@ -155,12 +190,9 @@ export default function HomeScreen() {
         const matchIdsToDelete: string[] = [];
 
         for (const match of activeMatches) {
-          const dateStr = match.date.split('T')[0];
-          const timeStr = match.time_slot.length === 5 ? `${match.time_slot}:00` : match.time_slot;
-          const matchEnd = new Date(`${dateStr}T${timeStr}`);
-          matchEnd.setMinutes(matchEnd.getMinutes() + (match.duration_minutes || 90));
+          const matchEnd = parseMatchEndDate(match.date, match.time_slot, match.duration_minutes || 90);
 
-          if (!isNaN(matchEnd.getTime()) && now > matchEnd) {
+          if (matchEnd && now > matchEnd) {
             const requiredPlayers = getRequiredPlayers((match as any).format);
             const currentPlayers = participantsByMatch.get((match as any).id) || 0;
             if (currentPlayers >= requiredPlayers) {
@@ -250,7 +282,7 @@ export default function HomeScreen() {
             .select(`
               match_id,
               user_id,
-              profile:Profiles!match_participants_user_id_fkey(firstname, lastname, avatar_url)
+              profile:profiles!match_participants_user_id_fkey(firstname, lastname, avatar_url)
             `)
             .in('match_id', matchIds);
 
@@ -307,12 +339,9 @@ export default function HomeScreen() {
             }
 
             if (match.status === 'open' || match.status === 'full') {
-              const dateStr = (match.date || '').split('T')[0];
-              const timeStr = (match.time_slot || '').length === 5 ? `${match.time_slot}:00` : match.time_slot;
-              const matchEnd = new Date(`${dateStr}T${timeStr}`);
-              matchEnd.setMinutes(matchEnd.getMinutes() + (match.duration_minutes || 90));
+              const matchEnd = parseMatchEndDate(match.date, match.time_slot, match.duration_minutes || 90);
 
-              if (!isNaN(matchEnd.getTime()) && now > matchEnd && isIncomplete) {
+              if (matchEnd && now > matchEnd && isIncomplete) {
                 if (match.creator_id === session.user.id) {
                   matchIdsToDelete.add(match.id);
                 }
@@ -400,12 +429,36 @@ export default function HomeScreen() {
         .limit(20);
 
       if (tournamentsData && tournamentsData.length > 0) {
-        const tournamentIds = tournamentsData.map(t => t.id);
-        const { data: demandsData } = await supabase
-          .from('tournament_demands')
-          .select('tournament_id')
-          .in('tournament_id', tournamentIds)
-          .eq('status', 'pending');
+        const now = new Date();
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+        // Supprimer les tournois "searching" dont la date est passée
+        const expiredSearchingIds = tournamentsData
+          .filter(t => t.status === 'searching' && t.date < todayStr)
+          .map(t => t.id);
+
+        if (expiredSearchingIds.length > 0) {
+          await supabase.from('tournaments').delete().in('id', expiredSearchingIds);
+        }
+
+        // Filtrer les tournois expirés searching et marquer les partner_found passés comme completed
+        const visibleTournaments = tournamentsData
+          .filter(t => !expiredSearchingIds.includes(t.id))
+          .map(t => {
+            if (t.status === 'partner_found' && t.date < todayStr) {
+              return { ...t, status: 'completed' };
+            }
+            return t;
+          });
+
+        const tournamentIds = visibleTournaments.map(t => t.id);
+        const { data: demandsData } = tournamentIds.length > 0
+          ? await supabase
+              .from('tournament_demands')
+              .select('tournament_id')
+              .in('tournament_id', tournamentIds)
+              .eq('status', 'pending')
+          : { data: null };
 
         const demandCountMap = new Map<string, number>();
         demandsData?.forEach((d: any) => {
@@ -413,7 +466,7 @@ export default function HomeScreen() {
           demandCountMap.set(d.tournament_id, count + 1);
         });
 
-        setMyTournaments(tournamentsData.map(t => ({
+        setMyTournaments(visibleTournaments.map(t => ({
           ...t,
           demand_count: demandCountMap.get(t.id) || 0,
         })));
@@ -422,6 +475,84 @@ export default function HomeScreen() {
       }
     } catch (error) {
       console.error('Erreur chargement tournois:', error);
+    }
+  };
+
+  const loadPlayerStats = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const userId = session.user.id;
+      const { data: resultsData } = await supabase
+        .from('match_results')
+        .select(`
+          team1_player1_id,
+          team1_player1_position,
+          team1_player2_id,
+          team1_player2_position,
+          team2_player1_id,
+          team2_player1_position,
+          team2_player2_id,
+          team2_player2_position,
+          winner_team
+        `)
+        .or(
+          `team1_player1_id.eq.${userId},team1_player2_id.eq.${userId},team2_player1_id.eq.${userId},team2_player2_id.eq.${userId}`
+        );
+
+      if (!resultsData) {
+        setPlayerStats({
+          totalMatches: 0,
+          wins: 0,
+          losses: 0,
+          leftMatches: 0,
+          rightMatches: 0,
+        });
+        return;
+      }
+
+      let wins = 0;
+      let losses = 0;
+      let leftMatches = 0;
+      let rightMatches = 0;
+
+      resultsData.forEach((result: any) => {
+        const isTeam1 = result.team1_player1_id === userId || result.team1_player2_id === userId;
+        const isTeam2 = result.team2_player1_id === userId || result.team2_player2_id === userId;
+
+        if (result.team1_player1_id === userId) {
+          if (result.team1_player1_position === 'left') leftMatches += 1;
+          if (result.team1_player1_position === 'right') rightMatches += 1;
+        }
+        if (result.team1_player2_id === userId) {
+          if (result.team1_player2_position === 'left') leftMatches += 1;
+          if (result.team1_player2_position === 'right') rightMatches += 1;
+        }
+        if (result.team2_player1_id === userId) {
+          if (result.team2_player1_position === 'left') leftMatches += 1;
+          if (result.team2_player1_position === 'right') rightMatches += 1;
+        }
+        if (result.team2_player2_id === userId) {
+          if (result.team2_player2_position === 'left') leftMatches += 1;
+          if (result.team2_player2_position === 'right') rightMatches += 1;
+        }
+
+        if (result.winner_team === 1 && isTeam1) wins += 1;
+        if (result.winner_team === 2 && isTeam2) wins += 1;
+        if (result.winner_team === 1 && isTeam2) losses += 1;
+        if (result.winner_team === 2 && isTeam1) losses += 1;
+      });
+
+      setPlayerStats({
+        totalMatches: resultsData.length,
+        wins,
+        losses,
+        leftMatches,
+        rightMatches,
+      });
+    } catch (error) {
+      console.error('Erreur chargement stats joueur:', error);
     }
   };
 
@@ -448,7 +579,15 @@ export default function HomeScreen() {
   const activeMatches = myMatches.filter((m) => m.status !== 'completed');
   const completedMatches = myMatches.filter((m) => m.status === 'completed');
   const searchingTournaments = myTournaments.filter((t) => t.status === 'searching');
-  const doneTournaments = myTournaments.filter((t) => t.status !== 'searching');
+  const partnerFoundTournaments = myTournaments.filter((t) => t.status === 'partner_found');
+  const completedTournaments = myTournaments.filter((t) => t.status === 'completed');
+  const declaredLevel = Number(profile?.declared_level || 0);
+  const hasCommunityLevel = profile?.community_level_votes > 0 && profile?.community_level != null;
+  const estimatedLevel = Number(hasCommunityLevel ? profile.community_level : profile?.declared_level || 0);
+  const declaredLevelPct = Math.min((declaredLevel / 10) * 100, 100);
+  const estimatedLevelPct = Math.min((estimatedLevel / 10) * 100, 100);
+  const playedWithResult = playerStats.wins + playerStats.losses;
+  const winRate = playedWithResult > 0 ? Math.round((playerStats.wins / playedWithResult) * 100) : 0;
 
   if (loading) return <ActivityIndicator size="large" style={styles.loader} />;
 
@@ -490,16 +629,71 @@ export default function HomeScreen() {
               onPress={() => router.push('/(tabs)/profile')}
               style={styles.avatarButton}
             >
-              <Avatar
-                imageUrl={profile.avatar_url}
-                firstName={profile.firstname || ''}
-                lastName={profile.lastname || ''}
-                size={44}
-                style={styles.headerAvatar}
-              />
+              <View style={styles.avatarFrame}>
+                <Avatar
+                  imageUrl={profile.avatar_url}
+                  firstName={profile.firstname || ''}
+                  lastName={profile.lastname || ''}
+                  size={50}
+                  style={styles.headerAvatar}
+                />
+              </View>
             </Pressable>
           </View>
           <Text style={styles.welcomeText}>Bonjour, {profile.username}</Text>
+
+          <View style={styles.playerStatsCard}>
+            <LinearGradient
+              colors={['rgba(28, 23, 12, 0.94)', 'rgba(16, 14, 10, 0.96)', 'rgba(8, 8, 9, 0.98)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.playerStatsGradient}
+            >
+              <View style={styles.playerStatsHeaderRow}>
+                <Text style={styles.playerStatsTitle}>Progression joueur</Text>
+                <Text style={styles.playerStatsXp}>XP {playerStats.totalMatches * 12}</Text>
+              </View>
+
+              <Text style={styles.playerStatsSectionLabel}>Niveau déclaré vs estimé</Text>
+              <View style={styles.levelCompareRow}>
+                <Text style={styles.levelCompareValue}>Déclaré {declaredLevel.toFixed(1)}</Text>
+                <Text style={styles.levelCompareValue}>Estimé {estimatedLevel.toFixed(1)}</Text>
+              </View>
+              <View style={styles.levelBarTrack}>
+                <View style={[styles.levelBarDeclared, { width: `${declaredLevelPct}%` }]} />
+                <View style={[styles.levelBarEstimated, { width: `${estimatedLevelPct}%` }]} />
+              </View>
+              <View style={styles.levelLegendRow}>
+                <View style={styles.levelLegendItem}>
+                  <View style={styles.levelLegendDeclared} />
+                  <Text style={styles.levelLegendText}>Déclaré</Text>
+                </View>
+                <View style={styles.levelLegendItem}>
+                  <View style={styles.levelLegendEstimated} />
+                  <Text style={styles.levelLegendText}>Estimé</Text>
+                </View>
+              </View>
+
+              <View style={styles.statsGrid}>
+                <View style={styles.statCell}>
+                  <Text style={styles.statValue}>{playerStats.totalMatches}</Text>
+                  <Text style={styles.statLabel}>Parties jouées</Text>
+                </View>
+                <View style={styles.statCell}>
+                  <Text style={styles.statValue}>{playerStats.wins}/{playerStats.losses}</Text>
+                  <Text style={styles.statLabel}>Victoires / Défaites</Text>
+                </View>
+                <View style={styles.statCell}>
+                  <Text style={styles.statValue}>{winRate}%</Text>
+                  <Text style={styles.statLabel}>Ratio victoire</Text>
+                </View>
+                <View style={styles.statCell}>
+                  <Text style={styles.statValue}>{playerStats.leftMatches}/{playerStats.rightMatches}</Text>
+                  <Text style={styles.statLabel}>Gauche / Droite</Text>
+                </View>
+              </View>
+            </LinearGradient>
+          </View>
         </View>
 
         <View style={[styles.section, styles.sectionCompact]}>
@@ -735,31 +929,21 @@ export default function HomeScreen() {
                 <Text style={styles.groupName}>Créer un tournoi</Text>
               </Pressable>
 
-              {doneTournaments.map((tournament) => {
-                const isPartnerFound = tournament.status === 'partner_found';
-                const accentColor = isPartnerFound ? '#44DD44' : '#D4AF37';
-                return (
+              {partnerFoundTournaments.map((tournament) => (
                   <Pressable
                     key={tournament.id}
                     style={({ pressed }) => [styles.matchCard, styles.matchCardCompact, pressed && styles.cardPressed]}
                     onPress={() => router.push(`/my-tournament/${tournament.id}` as any)}
                   >
                     <View style={styles.matchCardHeader}>
-                      <View style={[styles.badge, styles.badgeOpen]}>
-                        <Text style={styles.badgeText}>
-                          {isPartnerFound ? 'Trouve' : 'En recherche'}
-                        </Text>
+                      <View style={[styles.badge, styles.badgePartnerFound]}>
+                        <Text style={styles.badgeText}>Trouvé</Text>
                       </View>
-                      {tournament.demand_count > 0 && (
-                        <View style={styles.demandCountBadge}>
-                          <Text style={styles.demandCountText}>{tournament.demand_count}</Text>
-                        </View>
-                      )}
                     </View>
 
                     <View style={styles.matchDateTimeRow}>
                       <Text style={styles.matchDate}>{formatDate(tournament.date)}</Text>
-                      <Text style={[styles.matchTime, { color: accentColor }]}>
+                      <Text style={[styles.matchTime, { color: '#44DD44' }]}>
                         {tournament.time_slot || 'Heure libre'}
                       </Text>
                     </View>
@@ -775,8 +959,39 @@ export default function HomeScreen() {
                       <Text style={styles.matchPlayers}>{tournament.event_type}</Text>
                     </View>
                   </Pressable>
-                );
-              })}
+              ))}
+
+              {completedTournaments.map((tournament) => (
+                  <Pressable
+                    key={tournament.id}
+                    style={({ pressed }) => [styles.matchCard, styles.matchCardCompact, { borderColor: '#FF4444' }, pressed && styles.cardPressed]}
+                    onPress={() => router.push(`/my-tournament/${tournament.id}` as any)}
+                  >
+                    <View style={styles.matchCardHeader}>
+                      <View style={[styles.badge, styles.badgeCompleted]}>
+                        <Text style={styles.badgeText}>Terminé</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.matchDateTimeRow}>
+                      <Text style={styles.matchDate}>{formatDate(tournament.date)}</Text>
+                      <Text style={[styles.matchTime, { color: '#FF4444' }]}>
+                        {tournament.time_slot || 'Heure libre'}
+                      </Text>
+                    </View>
+
+                    {tournament.court && (
+                      <Text style={styles.matchCity} numberOfLines={1}>
+                        {tournament.court.city}
+                      </Text>
+                    )}
+
+                    <View style={styles.matchFooter}>
+                      <Text style={styles.matchPlayers}>{tournament.category}</Text>
+                      <Text style={styles.matchPlayers}>{tournament.event_type}</Text>
+                    </View>
+                  </Pressable>
+              ))}
           </ScrollView>
         </View>
 
@@ -844,15 +1059,154 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     marginTop: 16,
   },
+  avatarFrame: {
+    borderRadius: 999,
+    padding: 2,
+    backgroundColor: '#0E0E0E',
+    borderWidth: 0.8,
+    borderColor: 'rgba(255,255,255,0.28)',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 4,
+  },
   headerAvatar: {
-    borderWidth: 2,
-    borderColor: '#D4AF37',
+    borderWidth: 0,
   },
   welcomeText: {
     fontSize: 20,
     fontWeight: '600',
     color: '#FFFFFF',
     marginTop: -25,
+  },
+  playerStatsCard: {
+    marginTop: 12,
+    borderRadius: 18,
+    borderWidth: 1.1,
+    borderColor: 'rgba(212, 175, 55, 0.45)',
+    overflow: 'hidden',
+    shadowColor: '#D4AF37',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.26,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  playerStatsGradient: {
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 8,
+  },
+  playerStatsHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  playerStatsTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  playerStatsXp: {
+    color: '#D4AF37',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  playerStatsSectionLabel: {
+    color: '#C9B27A',
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+  },
+  levelCompareRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  levelCompareValue: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  levelBarTrack: {
+    position: 'relative',
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+  },
+  levelBarDeclared: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(212, 175, 55, 0.72)',
+  },
+  levelBarEstimated: {
+    position: 'absolute',
+    left: 0,
+    top: 2,
+    bottom: 2,
+    backgroundColor: '#141414',
+    borderWidth: 0.8,
+    borderColor: 'rgba(255,255,255,0.28)',
+    borderTopRightRadius: 999,
+    borderBottomRightRadius: 999,
+  },
+  levelLegendRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 14,
+  },
+  levelLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  levelLegendDeclared: {
+    width: 9,
+    height: 9,
+    borderRadius: 99,
+    backgroundColor: 'rgba(212, 175, 55, 0.9)',
+  },
+  levelLegendEstimated: {
+    width: 9,
+    height: 9,
+    borderRadius: 99,
+    backgroundColor: '#141414',
+    borderWidth: 0.8,
+    borderColor: 'rgba(255,255,255,0.28)',
+  },
+  levelLegendText: {
+    color: '#C0C0C0',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  statsGrid: {
+    marginTop: 4,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  statCell: {
+    width: '48%',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.28)',
+    backgroundColor: 'rgba(20, 19, 17, 0.78)',
+  },
+  statValue: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  statLabel: {
+    color: '#B8B8B8',
+    fontSize: 11,
+    marginTop: 1,
   },
   row: {
     flexDirection: 'row',
@@ -1008,7 +1362,7 @@ const styles = StyleSheet.create({
   },
   matchCard: {
     width: 160,
-    backgroundColor: 'rgba(16, 18, 22, 0.62)',
+    backgroundColor: Platform.OS === 'android' ? '#0E1014' : 'rgba(16, 18, 22, 0.62)',
     borderRadius: 18,
     borderWidth: 0.8,
     borderColor: '#D4AF37',
@@ -1137,7 +1491,7 @@ const styles = StyleSheet.create({
   groupCard: {
     width: 120,
     height: 118,
-    backgroundColor: 'rgba(17, 18, 22, 0.62)',
+    backgroundColor: Platform.OS === 'android' ? '#0E1014' : 'rgba(17, 18, 22, 0.62)',
     borderRadius: 18,
     borderWidth: 0.8,
     borderColor: '#D4AF37',
@@ -1237,5 +1591,3 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.45,
   },
 });
-
-

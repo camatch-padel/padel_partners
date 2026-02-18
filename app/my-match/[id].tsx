@@ -21,7 +21,11 @@ import {
 import Avatar from '@/components/Avatar';
 import LevelPyramid from '@/components/LevelPyramid';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
+const COURT_MAX_HEIGHT = Math.round(height * 0.5);
+const COURT_MAX_WIDTH = width - 40;
+const COURT_WIDTH = Math.min(COURT_MAX_WIDTH, Math.round(COURT_MAX_HEIGHT * 0.5));
+const COURT_HEIGHT = Math.round(COURT_WIDTH * 2);
 
 type Tab = 'edit' | 'chat' | 'requests' | 'waitlist' | 'results' | 'rating' | 'delete';
 
@@ -107,7 +111,7 @@ export default function MyMatchDetailScreen() {
         .from('matches')
         .select(`
           *,
-          creator:Profiles!matches_creator_id_fkey(id, username, firstname, lastname, declared_level, community_level, community_level_votes, avatar_url),
+          creator:profiles!matches_creator_id_fkey(id, username, firstname, lastname, declared_level, community_level, community_level_votes, avatar_url),
           court:courts(id, name, city, address)
         `)
         .eq('id', id)
@@ -147,7 +151,7 @@ export default function MyMatchDetailScreen() {
         .from('match_participants')
         .select(`
           user_id,
-          profile:Profiles!match_participants_user_id_fkey(username, firstname, lastname, declared_level, community_level, community_level_votes, avatar_url)
+          profile:profiles!match_participants_user_id_fkey(username, firstname, lastname, declared_level, community_level, community_level_votes, avatar_url)
         `)
         .eq('match_id', id);
 
@@ -200,7 +204,7 @@ export default function MyMatchDetailScreen() {
       .from('match_requests')
       .select(`
         id, match_id, user_id, status, created_at,
-        profile:Profiles!match_requests_user_id_fkey(username, firstname, lastname, declared_level, community_level, community_level_votes, avatar_url)
+        profile:profiles!match_requests_user_id_fkey(username, firstname, lastname, declared_level, community_level, community_level_votes, avatar_url)
       `)
       .eq('match_id', id)
       .order('created_at', { ascending: true });
@@ -212,7 +216,7 @@ export default function MyMatchDetailScreen() {
       .from('match_waitlist')
       .select(`
         id, match_id, user_id, position, created_at,
-        profile:Profiles!match_waitlist_user_id_fkey(username, firstname, lastname, declared_level, community_level, avatar_url)
+        profile:profiles!match_waitlist_user_id_fkey(username, firstname, lastname, declared_level, community_level, avatar_url)
       `)
       .eq('match_id', id)
       .order('position', { ascending: true });
@@ -246,7 +250,7 @@ export default function MyMatchDetailScreen() {
         .from('match_messages')
         .select(`
           id, match_id, user_id, message, created_at,
-          sender:Profiles!match_messages_user_id_fkey(username, firstname, lastname, avatar_url)
+          sender:profiles!match_messages_user_id_fkey(username, firstname, lastname, avatar_url)
         `)
         .eq('match_id', id)
         .order('created_at', { ascending: true })
@@ -272,7 +276,7 @@ export default function MyMatchDetailScreen() {
             .from('match_messages')
             .select(`
               id, match_id, user_id, message, created_at,
-              sender:Profiles!match_messages_user_id_fkey(username, firstname, lastname, avatar_url)
+              sender:profiles!match_messages_user_id_fkey(username, firstname, lastname, avatar_url)
             `)
             .eq('id', payload.new.id)
             .single();
@@ -303,7 +307,7 @@ export default function MyMatchDetailScreen() {
         .insert({ match_id: id, user_id: currentUserId, message: messageText })
         .select(`
           id, match_id, user_id, message, created_at,
-          sender:Profiles!match_messages_user_id_fkey(username, firstname, lastname, avatar_url)
+          sender:profiles!match_messages_user_id_fkey(username, firstname, lastname, avatar_url)
         `)
         .single();
 
@@ -646,7 +650,7 @@ export default function MyMatchDetailScreen() {
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={180}
+      keyboardVerticalOffset={0}
     >
       <FlatList
         ref={flatListRef}
@@ -870,7 +874,8 @@ export default function MyMatchDetailScreen() {
               {/* Demi-terrain haut (Équipe 1) */}
               <View style={styles.courtHalf}>
                 {/* Ligne de fond (près du bord haut) */}
-                <View style={styles.courtServiceLine} />
+                <View style={styles.courtServiceLineTop} />
+                <View pointerEvents="none" style={styles.courtCenterLineOverlayTop} />
 
                 {/* Zones joueurs */}
                 <View style={styles.courtSide}>
@@ -889,7 +894,6 @@ export default function MyMatchDetailScreen() {
                   </Pressable>
                   {isFormat4 && (
                     <>
-                      <View style={styles.courtCenterLineVertical} />
                       <Pressable
                         style={[styles.courtZone, teamPlacements.team1.player2 && styles.courtZoneFilled, selectingZone === 't1_right' && styles.courtZoneSelecting]}
                         onPress={() => handlePlacePlayer('t1_right')}
@@ -913,6 +917,7 @@ export default function MyMatchDetailScreen() {
 
               {/* Demi-terrain bas (Équipe 2) */}
               <View style={styles.courtHalf}>
+                <View pointerEvents="none" style={styles.courtCenterLineOverlayBottom} />
                 {/* Zones joueurs */}
                 <View style={styles.courtSide}>
                   <Pressable
@@ -930,7 +935,6 @@ export default function MyMatchDetailScreen() {
                   </Pressable>
                   {isFormat4 && (
                     <>
-                      <View style={styles.courtCenterLineVertical} />
                       <Pressable
                         style={[styles.courtZone, teamPlacements.team2.player2 && styles.courtZoneFilled, selectingZone === 't2_right' && styles.courtZoneSelecting]}
                         onPress={() => handlePlacePlayer('t2_right')}
@@ -949,7 +953,7 @@ export default function MyMatchDetailScreen() {
                 </View>
 
                 {/* Ligne de fond (près du bord bas) */}
-                <View style={styles.courtServiceLine} />
+                <View style={styles.courtServiceLineBottom} />
               </View>
 
               {/* Label Équipe 2 */}
@@ -1366,21 +1370,60 @@ const styles = StyleSheet.create({
 
   // Court
   courtContainer: {
-    backgroundColor: '#2A2A2A', borderWidth: 3, borderColor: '#FFFFFF',
-    borderRadius: 4, marginBottom: 20, aspectRatio: 0.5,
+    width: COURT_WIDTH,
+    height: COURT_HEIGHT,
+    maxHeight: COURT_MAX_HEIGHT,
+    alignSelf: 'center',
+    backgroundColor: '#2A2A2A',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    borderRadius: 4,
+    marginBottom: 20,
+    overflow: 'hidden',
   },
   courtInner: {
     flex: 1, justifyContent: 'center',
   },
   courtHalf: {
-    flex: 1, justifyContent: 'center', paddingHorizontal: 4,
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+    position: 'relative',
   },
   teamLabel: { fontSize: 13, fontWeight: '700', color: '#AAAAAA', textAlign: 'center', paddingVertical: 4 },
-  courtServiceLine: {
-    height: 1, backgroundColor: '#FFFFFF', marginHorizontal: 8,
+  courtServiceLineTop: {
+    position: 'absolute',
+    left: 8,
+    right: 8,
+    top: '30%',
+    height: 1.2,
+    backgroundColor: '#FFFFFF',
   },
-  courtCenterLineVertical: {
-    width: 1, backgroundColor: '#FFFFFF',
+  courtServiceLineBottom: {
+    position: 'absolute',
+    left: 8,
+    right: 8,
+    bottom: '30%',
+    height: 1.2,
+    backgroundColor: '#FFFFFF',
+  },
+  courtCenterLineOverlayTop: {
+    position: 'absolute',
+    top: '30%',
+    bottom: 0,
+    left: '50%',
+    width: 1.2,
+    marginLeft: -0.6,
+    backgroundColor: '#FFFFFF',
+  },
+  courtCenterLineOverlayBottom: {
+    position: 'absolute',
+    top: 0,
+    bottom: '30%',
+    left: '50%',
+    width: 1.2,
+    marginLeft: -0.6,
+    backgroundColor: '#FFFFFF',
   },
   courtSide: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'stretch' },
   courtZone: {
@@ -1557,6 +1600,3 @@ const styles = StyleSheet.create({
   },
   chatSendButtonDisabled: { backgroundColor: '#666666' },
 });
-
-
-

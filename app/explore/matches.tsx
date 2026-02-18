@@ -82,7 +82,7 @@ export default function ExploreMatchesScreen() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         const { data: profile } = await supabase
-          .from('Profiles')
+          .from('profiles')
           .select('court_id')
           .eq('id', session.user.id)
           .single();
@@ -207,7 +207,7 @@ export default function ExploreMatchesScreen() {
         .from('matches')
         .select(`
           *,
-          creator:Profiles!matches_creator_id_fkey(id, username, firstname, lastname, declared_level, community_level, community_level_votes, avatar_url),
+          creator:profiles!matches_creator_id_fkey(id, username, firstname, lastname, declared_level, community_level, community_level_votes, avatar_url),
           court:courts(id, name, city, address, latitude, longitude)
         `)
         .gte('level_min', levelMin)
@@ -237,7 +237,7 @@ export default function ExploreMatchesScreen() {
         .select(`
           match_id,
           user_id,
-          profile:Profiles!match_participants_user_id_fkey(username, firstname, lastname, avatar_url, declared_level, community_level, community_level_votes)
+          profile:profiles!match_participants_user_id_fkey(username, firstname, lastname, avatar_url, declared_level, community_level, community_level_votes)
         `)
         .in('match_id', matchIds);
 
@@ -381,7 +381,7 @@ export default function ExploreMatchesScreen() {
       }
 
       const { data: userProfile } = await supabase
-        .from('Profiles')
+        .from('profiles')
         .select('declared_level')
         .eq('id', session.user.id)
         .single();

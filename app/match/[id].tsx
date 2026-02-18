@@ -46,7 +46,7 @@ export default function MatchChatScreen() {
         .from('matches')
         .select(`
           *,
-          creator:Profiles!matches_creator_id_fkey(
+          creator:profiles!matches_creator_id_fkey(
             id,
             username,
             firstname,
@@ -62,7 +62,7 @@ export default function MatchChatScreen() {
           ),
           participants:match_participants(
             user_id,
-            profile:Profiles!match_participants_user_id_fkey(
+            profile:profiles!match_participants_user_id_fkey(
               username,
               firstname,
               lastname,
@@ -110,7 +110,7 @@ export default function MatchChatScreen() {
           user_id,
           message,
           created_at,
-          sender:Profiles!match_messages_user_id_fkey(
+          sender:profiles!match_messages_user_id_fkey(
             username,
             firstname,
             lastname,
@@ -154,7 +154,7 @@ export default function MatchChatScreen() {
               user_id,
               message,
               created_at,
-              sender:Profiles!match_messages_user_id_fkey(
+              sender:profiles!match_messages_user_id_fkey(
                 username,
                 firstname,
                 lastname,
@@ -205,7 +205,7 @@ export default function MatchChatScreen() {
           user_id,
           message,
           created_at,
-          sender:Profiles!match_messages_user_id_fkey(
+          sender:profiles!match_messages_user_id_fkey(
             username,
             firstname,
             lastname,
@@ -283,7 +283,7 @@ export default function MatchChatScreen() {
       <KeyboardAvoidingView
         style={styles.chatContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={100}
+        keyboardVerticalOffset={0}
       >
         <FlatList
           ref={flatListRef}

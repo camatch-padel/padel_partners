@@ -50,7 +50,7 @@ export default function CreateGroupScreen() {
     setSearching(true);
     try {
       const { data, error } = await supabase
-        .from('Profiles')
+        .from('profiles')
         .select('id, username, firstname, lastname, declared_level, avatar_url')
         .or(`username.ilike.%${query}%,firstname.ilike.%${query}%,lastname.ilike.%${query}%`)
         .limit(10);
@@ -145,7 +145,7 @@ export default function CreateGroupScreen() {
 
     try {
       const { data, error } = await supabase
-        .from('Profiles')
+        .from('profiles')
         .select('id, username, firstname, lastname, declared_level, avatar_url')
         .in('id', formData.memberIds);
 

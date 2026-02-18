@@ -68,7 +68,7 @@ export default function ExploreClubsScreen() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         const { data: profile } = await supabase
-          .from('Profiles')
+          .from('profiles')
           .select('court_id')
           .eq('id', session.user.id)
           .single();

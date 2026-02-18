@@ -80,7 +80,7 @@ export default function TournamentExploreScreen() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         const { data: profile } = await supabase
-          .from('Profiles')
+          .from('profiles')
           .select('court_id')
           .eq('id', session.user.id)
           .single();
@@ -135,7 +135,7 @@ export default function TournamentExploreScreen() {
         .select(
           `
           *,
-          creator:Profiles!tournaments_creator_id_fkey(id, username, firstname, lastname, declared_level, community_level, community_level_votes, avatar_url),
+          creator:profiles!tournaments_creator_id_fkey(id, username, firstname, lastname, declared_level, community_level, community_level_votes, avatar_url),
           court:courts(id, name, city, address, latitude, longitude)
         `
         )

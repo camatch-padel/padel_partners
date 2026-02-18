@@ -77,7 +77,7 @@ export default function MyTournamentDetailScreen() {
         .from('tournaments')
         .select(`
           *,
-          creator:Profiles!tournaments_creator_id_fkey(id, username, firstname, lastname, declared_level, community_level, community_level_votes, avatar_url),
+          creator:profiles!tournaments_creator_id_fkey(id, username, firstname, lastname, declared_level, community_level, community_level_votes, avatar_url),
           court:courts(id, name, city, address)
         `)
         .eq('id', id)
@@ -115,7 +115,7 @@ export default function MyTournamentDetailScreen() {
       .from('tournament_demands')
       .select(`
         id, tournament_id, user_id, status, created_at,
-        profile:Profiles!tournament_demands_user_id_fkey(username, firstname, lastname, declared_level, community_level, community_level_votes, avatar_url)
+        profile:profiles!tournament_demands_user_id_fkey(username, firstname, lastname, declared_level, community_level, community_level_votes, avatar_url)
       `)
       .eq('tournament_id', id)
       .order('created_at', { ascending: true });
@@ -128,7 +128,7 @@ export default function MyTournamentDetailScreen() {
         .from('tournament_messages')
         .select(`
           id, tournament_id, user_id, message, created_at,
-          sender:Profiles!tournament_messages_user_id_fkey(username, firstname, lastname, avatar_url)
+          sender:profiles!tournament_messages_user_id_fkey(username, firstname, lastname, avatar_url)
         `)
         .eq('tournament_id', id)
         .order('created_at', { ascending: true })
@@ -154,7 +154,7 @@ export default function MyTournamentDetailScreen() {
             .from('tournament_messages')
             .select(`
               id, tournament_id, user_id, message, created_at,
-              sender:Profiles!tournament_messages_user_id_fkey(username, firstname, lastname, avatar_url)
+              sender:profiles!tournament_messages_user_id_fkey(username, firstname, lastname, avatar_url)
             `)
             .eq('id', payload.new.id)
             .single();
@@ -187,7 +187,7 @@ export default function MyTournamentDetailScreen() {
         .insert({ tournament_id: id, user_id: currentUserId, message: messageText })
         .select(`
           id, tournament_id, user_id, message, created_at,
-          sender:Profiles!tournament_messages_user_id_fkey(username, firstname, lastname, avatar_url)
+          sender:profiles!tournament_messages_user_id_fkey(username, firstname, lastname, avatar_url)
         `)
         .single();
 
@@ -427,7 +427,7 @@ export default function MyTournamentDetailScreen() {
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={180}
+      keyboardVerticalOffset={0}
     >
       <FlatList
         ref={flatListRef}
@@ -502,81 +502,95 @@ export default function MyTournamentDetailScreen() {
   );
 
   // === ONGLET DEMANDES ===
-  const renderDemandsTab = () => (
-    <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-      <Text style={styles.tabTitle}>Demandes reçues</Text>
-      {demands.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="notifications-outline" size={48} color="#D4AF37" />
-          <Text style={styles.emptyText}>Aucune demande pour le moment</Text>
-        </View>
-      ) : (
-        demands.map((demand) => (
-          <View
-            key={demand.id}
-            style={[
-              styles.requestItem,
-              demand.status === 'accepted' && styles.requestItemAccepted,
-              demand.status === 'rejected' && styles.requestItemRejected,
-            ]}
-          >
-            <Avatar
-              imageUrl={demand.profile?.avatar_url}
-              firstName={demand.profile?.firstname || 'U'}
-              lastName={demand.profile?.lastname || 'ser'}
-              size={48}
-            />
-            <View style={styles.requestInfo}>
-              <Text style={styles.requestName}>
-                {demand.profile?.firstname} {demand.profile?.lastname}
-              </Text>
-              <Text style={styles.requestLevel}>
-                {demand.profile?.declared_level.toFixed(1)}
-                {demand.profile?.community_level_votes > 0 &&
-                demand.profile?.community_level != null
-                  ? ` / ${demand.profile.community_level.toFixed(1)}`
-                  : ''}
-              </Text>
-              {demand.status !== 'pending' && (
-                <Text
-                  style={[
-                    styles.requestStatus,
-                    { color: demand.status === 'accepted' ? '#44DD44' : '#FF4444' },
-                  ]}
-                >
-                  {demand.status === 'accepted' ? 'Accepté' : 'Refusé'}
+  const renderDemandsTab = () => {
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const isTournamentPast = tournament ? tournament.date < todayStr : false;
+
+    return (
+      <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+        <Text style={styles.tabTitle}>Demandes reçues</Text>
+        {isTournamentPast && (
+          <View style={styles.pastBanner}>
+            <Ionicons name="lock-closed" size={16} color="#FF4444" />
+            <Text style={styles.pastBannerText}>Tournoi terminé — les demandes ne peuvent plus être modifiées</Text>
+          </View>
+        )}
+        {demands.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="notifications-outline" size={48} color="#D4AF37" />
+            <Text style={styles.emptyText}>Aucune demande pour le moment</Text>
+          </View>
+        ) : (
+          demands.map((demand) => (
+            <View
+              key={demand.id}
+              style={[
+                styles.requestItem,
+                demand.status === 'accepted' && styles.requestItemAccepted,
+                demand.status === 'rejected' && styles.requestItemRejected,
+              ]}
+            >
+              <Avatar
+                imageUrl={demand.profile?.avatar_url}
+                firstName={demand.profile?.firstname || 'U'}
+                lastName={demand.profile?.lastname || 'ser'}
+                size={48}
+              />
+              <View style={styles.requestInfo}>
+                <Text style={styles.requestName}>
+                  {demand.profile?.firstname} {demand.profile?.lastname}
                 </Text>
+                <Text style={styles.requestLevel}>
+                  {demand.profile?.declared_level.toFixed(1)}
+                  {demand.profile?.community_level_votes > 0 &&
+                  demand.profile?.community_level != null
+                    ? ` / ${demand.profile.community_level.toFixed(1)}`
+                    : ''}
+                </Text>
+                {demand.status !== 'pending' && (
+                  <Text
+                    style={[
+                      styles.requestStatus,
+                      { color: demand.status === 'accepted' ? '#44DD44' : '#FF4444' },
+                    ]}
+                  >
+                    {demand.status === 'accepted' ? 'Accepté' : 'Refusé'}
+                  </Text>
+                )}
+              </View>
+              {!isTournamentPast && (
+                processingDemand === demand.id ? (
+                  <ActivityIndicator size="small" color="#D4AF37" />
+                ) : (
+                  <View style={styles.requestActions}>
+                    <Pressable
+                      style={[
+                        styles.acceptButton,
+                        demand.status === 'accepted' && styles.acceptButtonActive,
+                      ]}
+                      onPress={() => handleAcceptDemand(demand)}
+                    >
+                      <Ionicons name="checkmark" size={24} color="#FFFFFF" />
+                    </Pressable>
+                    <Pressable
+                      style={[
+                        styles.rejectButton,
+                        demand.status === 'rejected' && styles.rejectButtonActive,
+                      ]}
+                      onPress={() => handleRejectDemand(demand)}
+                    >
+                      <Ionicons name="close" size={24} color="#FFFFFF" />
+                    </Pressable>
+                  </View>
+                )
               )}
             </View>
-            {processingDemand === demand.id ? (
-              <ActivityIndicator size="small" color="#D4AF37" />
-            ) : (
-              <View style={styles.requestActions}>
-                <Pressable
-                  style={[
-                    styles.acceptButton,
-                    demand.status === 'accepted' && styles.acceptButtonActive,
-                  ]}
-                  onPress={() => handleAcceptDemand(demand)}
-                >
-                  <Ionicons name="checkmark" size={24} color="#FFFFFF" />
-                </Pressable>
-                <Pressable
-                  style={[
-                    styles.rejectButton,
-                    demand.status === 'rejected' && styles.rejectButtonActive,
-                  ]}
-                  onPress={() => handleRejectDemand(demand)}
-                >
-                  <Ionicons name="close" size={24} color="#FFFFFF" />
-                </Pressable>
-              </View>
-            )}
-          </View>
-        ))
-      )}
-    </ScrollView>
-  );
+          ))
+        )}
+      </ScrollView>
+    );
+  };
 
   // === ONGLET SUPPRIMER ===
   const renderDeleteTab = () => (
@@ -891,6 +905,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   chatSendButtonDisabled: { backgroundColor: '#666666' },
+  pastBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255, 68, 68, 0.15)',
+    borderWidth: 0.8,
+    borderColor: '#FF4444',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  pastBannerText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#FF4444',
+    fontWeight: '600',
+  },
 });
 
 

@@ -74,7 +74,7 @@ export default function ExplorePlayersScreen() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         const { data: profile } = await supabase
-          .from('Profiles')
+          .from('profiles')
           .select('court_id')
           .eq('id', session.user.id)
           .single();
@@ -120,7 +120,7 @@ export default function ExplorePlayersScreen() {
     try {
       setLoading(true);
       const { data, error } = await supabase
-        .from('Profiles')
+        .from('profiles')
         .select(`
           id, firstname, lastname, declared_level, community_level, community_level_votes,
           court:courts(name, latitude, longitude)

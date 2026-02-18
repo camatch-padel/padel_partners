@@ -46,11 +46,15 @@ export default function ProfileScreen() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        const { data } = await supabase
-          .from('Profiles')
+        const { data, error } = await supabase
+          .from('profiles')
           .select('*')
           .eq('id', session.user.id)
           .single();
+
+        if (error) {
+          console.log('Erreur chargement profil:', error.message);
+        }
 
         if (data) {
           setProfile(data);
@@ -69,8 +73,8 @@ export default function ProfileScreen() {
         .select('*')
         .order('city');
       if (courtsData) setCourts(courtsData);
-    } catch (error) {
-      console.log('Pas de profil existant');
+    } catch (error: any) {
+      console.log('Pas de profil existant:', error.message);
     } finally {
       setLoading(false);
     }
@@ -147,7 +151,7 @@ export default function ProfileScreen() {
 
       // Mettre à jour le profil avec la nouvelle URL
       const { error: updateError } = await supabase
-        .from('Profiles')
+        .from('profiles')
         .update({ avatar_url: publicUrl })
         .eq('id', session.user.id);
 
@@ -185,7 +189,7 @@ export default function ProfileScreen() {
       if (profile) {
         // Mise à jour
         const { error } = await supabase
-          .from('Profiles')
+          .from('profiles')
           .update({
             username,
             firstname: firstName,
@@ -205,7 +209,7 @@ export default function ProfileScreen() {
         }
       } else {
         // Création
-        const { error } = await supabase.from('Profiles').insert({
+        const { error } = await supabase.from('profiles').insert({
           id: session.user.id,
           username,
           firstname: firstName,
@@ -235,13 +239,70 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = async () => {
-  try {
-    await supabase.auth.signOut();
-    router.replace('/auth');  // <-- Ajoutez cette ligne
-  } catch (error) {
-    console.error('Erreur déconnexion:', error);
-  }
-};
+    try {
+      await supabase.auth.signOut();
+      router.replace('/auth');
+    } catch (error) {
+      console.error('Erreur déconnexion:', error);
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Supprimer mon compte',
+      'Cette action est irréversible. Toutes vos données (profil, matchs, groupes, tournois) seront définitivement supprimées.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Confirmer la suppression',
+              'Êtes-vous vraiment sûr ? Cette action ne peut pas être annulée.',
+              [
+                { text: 'Annuler', style: 'cancel' },
+                {
+                  text: 'Oui, supprimer définitivement',
+                  style: 'destructive',
+                  onPress: deleteAccount,
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  };
+
+  const deleteAccount = async () => {
+    try {
+      setCreating(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const userId = session.user.id;
+
+      // Supprimer l'avatar du storage
+      if (avatarUrl) {
+        const oldPath = avatarUrl.split('/').slice(-2).join('/');
+        await supabase.storage.from('avatars').remove([oldPath]);
+      }
+
+      // Supprimer le profil (les données liées seront supprimées par CASCADE ou RLS)
+      await supabase.from('profiles').delete().eq('id', userId);
+
+      // Supprimer le compte auth via edge function ou RPC
+      await supabase.rpc('delete_own_account');
+
+      await supabase.auth.signOut();
+      router.replace('/auth');
+    } catch (error: any) {
+      Alert.alert('Erreur', error.message || 'Impossible de supprimer le compte');
+    } finally {
+      setCreating(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -448,12 +509,15 @@ export default function ProfileScreen() {
             )}
           </Pressable>
 
-          {profile && (
-            <Pressable style={styles.logoutButton} onPress={handleLogout}>
-              <Ionicons name="log-out-outline" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
-              <Text style={styles.logoutButtonText}>Se déconnecter</Text>
-            </Pressable>
-          )}
+          <Pressable style={styles.logoutButton} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
+            <Text style={styles.logoutButtonText}>Se déconnecter</Text>
+          </Pressable>
+
+          <Pressable style={styles.deleteAccountButton} onPress={handleDeleteAccount}>
+            <Ionicons name="trash-outline" size={20} color="#FF4444" style={{ marginRight: 8 }} />
+            <Text style={styles.deleteAccountButtonText}>Supprimer mon compte</Text>
+          </Pressable>
         </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -469,6 +533,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: 20,
     paddingTop: 60,
+    paddingBottom: 100,
   },
   title: {
     fontSize: 28,
@@ -651,6 +716,23 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     textAlign: 'center',
     marginTop: 8,
+  },
+  deleteAccountButton: {
+    flexDirection: 'row',
+    width: '100%',
+    height: 50,
+    backgroundColor: 'transparent',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    borderWidth: 0.8,
+    borderColor: '#FF4444',
+  },
+  deleteAccountButtonText: {
+    color: '#FF4444',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
