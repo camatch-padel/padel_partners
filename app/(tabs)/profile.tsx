@@ -13,6 +13,7 @@ import {
   Alert,
   ImageBackground,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -514,6 +515,16 @@ export default function ProfileScreen() {
             <Text style={styles.logoutButtonText}>Se déconnecter</Text>
           </Pressable>
 
+          <View style={styles.legalLinks}>
+            <Pressable onPress={() => Linking.openURL('https://camatch-padel.github.io/camatch/privacy-policy.html')}>
+              <Text style={styles.legalLinkText}>Politique de Confidentialité</Text>
+            </Pressable>
+            <Text style={styles.legalSeparator}>•</Text>
+            <Pressable onPress={() => Linking.openURL('https://camatch-padel.github.io/camatch/terms.html')}>
+              <Text style={styles.legalLinkText}>CGU</Text>
+            </Pressable>
+          </View>
+
           <Pressable style={styles.deleteAccountButton} onPress={handleDeleteAccount}>
             <Ionicons name="trash-outline" size={20} color="#FF4444" style={{ marginRight: 8 }} />
             <Text style={styles.deleteAccountButtonText}>Supprimer mon compte</Text>
@@ -716,6 +727,22 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     textAlign: 'center',
     marginTop: 8,
+  },
+  legalLinks: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
+    gap: 8,
+  },
+  legalLinkText: {
+    color: '#888888',
+    fontSize: 14,
+    textDecorationLine: 'underline',
+  },
+  legalSeparator: {
+    color: '#888888',
+    fontSize: 14,
   },
   deleteAccountButton: {
     flexDirection: 'row',
