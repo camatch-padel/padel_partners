@@ -516,11 +516,11 @@ export default function ProfileScreen() {
           </Pressable>
 
           <View style={styles.legalLinks}>
-            <Pressable onPress={() => Linking.openURL('https://camatch-padel.github.io/camatch/privacy-policy.html')}>
+            <Pressable onPress={() => Linking.openURL('https://camatch-padel.github.io/padel_partners/privacy-policy.html')}>
               <Text style={styles.legalLinkText}>Politique de Confidentialité</Text>
             </Pressable>
             <Text style={styles.legalSeparator}>•</Text>
-            <Pressable onPress={() => Linking.openURL('https://camatch-padel.github.io/camatch/terms.html')}>
+            <Pressable onPress={() => Linking.openURL('https://camatch-padel.github.io/padel_partners/terms.html')}>
               <Text style={styles.legalLinkText}>CGU</Text>
             </Pressable>
           </View>
