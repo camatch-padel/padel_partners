@@ -86,9 +86,11 @@ const parseMatchEndDate = (dateStr: string, timeSlot: string, durationMinutes: n
 function PremiumSearchButton({
   onPress,
   title,
+  isDark = true,
 }: {
   onPress: () => void;
   title: string;
+  isDark?: boolean;
 }) {
   return (
     <View style={styles.premiumSearchWrapper}>
@@ -97,22 +99,22 @@ function PremiumSearchButton({
         style={({ pressed }) => [styles.premiumSearchPressable, pressed && styles.premiumSearchPressed]}
       >
         <LinearGradient
-          colors={['#111214', '#0B0B0D']}
+          colors={isDark ? ['#111214', '#0B0B0D'] : ['#FFFFFF', '#F5F5F0']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.premiumSearchGradient}
+          style={[styles.premiumSearchGradient, !isDark && { borderWidth: 1, borderColor: '#E0E0E0' }]}
         >
           <View style={styles.premiumShineLeft} />
           <View style={styles.premiumShineRight} />
           <LinearGradient
-            colors={['#17181B', '#0B0B0D']}
+            colors={isDark ? ['#17181B', '#0B0B0D'] : ['#FFFFFF', '#F0F0EC']}
             start={{ x: 0.15, y: 0 }}
             end={{ x: 0.85, y: 1 }}
             style={styles.premiumSearchInner}
           >
             <View style={styles.premiumReliefTop} />
             <View style={styles.premiumReliefBottom} />
-            <Text style={styles.premiumSearchText}>{title}</Text>
+            <Text style={[styles.premiumSearchText, !isDark && { color: '#555555' }]}>{title}</Text>
           </LinearGradient>
         </LinearGradient>
       </Pressable>
@@ -715,6 +717,7 @@ export default function HomeScreen() {
             <PremiumSearchButton
               title="Rechercher une partie"
               onPress={() => router.push('/(tabs)/explore')}
+              isDark={isDark}
             />
           </View>
           <ScrollView
@@ -885,6 +888,7 @@ export default function HomeScreen() {
             <PremiumSearchButton
               title="Rechercher un partenaire de tournoi"
               onPress={() => router.push('/tournament/explore' as any)}
+              isDark={isDark}
             />
           </View>
           <ScrollView
