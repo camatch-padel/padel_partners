@@ -1,3 +1,4 @@
+import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/constants/supabase';
 import { GROUP_ICONS, type GroupFormData } from '@/types/group';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,6 +27,7 @@ interface PlayerSearchResult {
 }
 
 export default function CreateGroupScreen() {
+  const { backgroundImage } = useTheme();
   const [formData, setFormData] = useState<GroupFormData>({
     name: '',
     description: '',
@@ -163,7 +165,7 @@ export default function CreateGroupScreen() {
 
   return (
     <ImageBackground
-      source={require('@/assets/images/piste-noire.png')}
+      source={backgroundImage}
       style={styles.container}
       resizeMode="cover"
     >

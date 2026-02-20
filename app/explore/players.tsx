@@ -1,3 +1,4 @@
+import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/constants/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
@@ -29,6 +30,7 @@ interface Player {
 }
 
 export default function ExplorePlayersScreen() {
+  const { backgroundImage } = useTheme();
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [filteredPlayers, setFilteredPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
@@ -314,7 +316,7 @@ export default function ExplorePlayersScreen() {
 
   return (
     <ImageBackground
-      source={require('@/assets/images/piste-noire.png')}
+      source={backgroundImage}
       style={styles.container}
       resizeMode="cover"
     >

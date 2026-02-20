@@ -1,3 +1,4 @@
+import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/constants/supabase';
 import { DAYS_OF_WEEK, MONTHS, TIME_SLOTS, VISIBILITY_OPTIONS } from '@/constants/match-constants';
 import {
@@ -43,6 +44,7 @@ const CREATE_TOURNAMENT_STEP_TITLES = [
 ];
 
 export default function CreateTournamentModal() {
+  const { backgroundImage } = useTheme();
   const [formData, setFormData] = useState<TournamentFormData>({
     date: new Date(),
     timeSlot: '',
@@ -771,7 +773,7 @@ export default function CreateTournamentModal() {
 
   return (
     <ImageBackground
-      source={require('@/assets/images/piste-noire.png')}
+      source={backgroundImage}
       style={styles.container}
       resizeMode="cover"
     >

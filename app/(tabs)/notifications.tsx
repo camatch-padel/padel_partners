@@ -1,3 +1,5 @@
+import { useTheme } from '@/contexts/ThemeContext';
+import { useNotificationPrefs } from '@/contexts/NotificationPrefsContext';
 import { supabase } from '@/constants/supabase';
 import { useNotifications } from '@/contexts/NotificationsContext';
 import type { Notification } from '@/types/notification';
@@ -41,9 +43,11 @@ const formatRelativeTime = (dateStr: string): string => {
 };
 
 export default function NotificationsScreen() {
+  const { backgroundImage } = useTheme();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const { markAsRead, markAllAsRead, refreshUnreadCount } = useNotifications();
+  const { isEnabled } = useNotificationPrefs();
 
   useFocusEffect(
     useCallback(() => {
@@ -127,7 +131,7 @@ export default function NotificationsScreen() {
 
   return (
     <ImageBackground
-      source={require('@/assets/images/piste-noire.png')}
+      source={backgroundImage}
       style={styles.container}
       resizeMode="cover"
     >
@@ -146,7 +150,7 @@ export default function NotificationsScreen() {
         </View>
       ) : (
         <FlatList
-          data={notifications}
+          data={notifications.filter((n) => isEnabled(n.type))}
           renderItem={renderNotification}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContainer}

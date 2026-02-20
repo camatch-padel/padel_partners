@@ -1,3 +1,4 @@
+import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/constants/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -25,6 +26,7 @@ interface Club {
 }
 
 export default function ExploreClubsScreen() {
+  const { backgroundImage } = useTheme();
   const [clubs, setClubs] = useState<Club[]>([]);
   const [filteredClubs, setFilteredClubs] = useState<Club[]>([]);
   const [loading, setLoading] = useState(true);
@@ -170,7 +172,7 @@ export default function ExploreClubsScreen() {
 
   return (
     <ImageBackground
-      source={require('@/assets/images/piste-noire.png')}
+      source={backgroundImage}
       style={styles.container}
       resizeMode="cover"
     >

@@ -1,11 +1,13 @@
+import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
 
 export default function ExploreScreen() {
+  const { backgroundImage } = useTheme();
   return (
     <ImageBackground
-      source={require('@/assets/images/piste-noire.png')}
+      source={backgroundImage}
       style={styles.container}
       resizeMode="cover"
     >

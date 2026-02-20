@@ -1,3 +1,4 @@
+import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/constants/supabase';
 import Avatar from '@/components/Avatar';
 import Slider from '@react-native-community/slider';
@@ -24,6 +25,7 @@ import {
 } from '@/constants/tournament-constants';
 
 export default function TournamentExploreScreen() {
+  const { backgroundImage } = useTheme();
   const [tournaments, setTournaments] = useState<TournamentWithDistance[]>([]);
   const [loading, setLoading] = useState(true);
   const [locationSource, setLocationSource] = useState<'gps' | 'club' | 'none'>('none');
@@ -684,7 +686,7 @@ export default function TournamentExploreScreen() {
 
   return (
     <ImageBackground
-      source={require('@/assets/images/piste-noire.png')}
+      source={backgroundImage}
       style={styles.container}
       resizeMode="cover"
     >

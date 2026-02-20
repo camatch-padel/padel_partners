@@ -1,3 +1,4 @@
+import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/constants/supabase';
 import type { TournamentWithDetails, TournamentDemand, TournamentMessage } from '@/types/tournament';
 import { Ionicons } from '@expo/vector-icons';
@@ -39,6 +40,7 @@ const TABS: TabConfig[] = [
 ];
 
 export default function MyTournamentDetailScreen() {
+  const { backgroundImage } = useTheme();
   const { id, tab } = useLocalSearchParams<{ id: string; tab?: string }>();
   const [activeTab, setActiveTab] = useState<Tab>('details');
   const [loading, setLoading] = useState(true);
@@ -637,7 +639,7 @@ export default function MyTournamentDetailScreen() {
   const visibleTabs = TABS.filter((t) => t.showWhen(tournament?.status || '', isCreator));
 
   return (
-    <ImageBackground source={require('@/assets/images/piste-noire.png')} resizeMode="cover" style={styles.container}>
+    <ImageBackground source={backgroundImage} resizeMode="cover" style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>

@@ -1,3 +1,4 @@
+import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/constants/supabase';
 import type { MatchWithDetails } from '@/types/match';
 import Avatar from '@/components/Avatar';
@@ -29,6 +30,7 @@ interface MatchWithDistance extends MatchWithDetails {
 }
 
 export default function ExploreMatchesScreen() {
+  const { backgroundImage } = useTheme();
   const [matches, setMatches] = useState<MatchWithDistance[]>([]);
   const [loading, setLoading] = useState(true);
   const [locationSource, setLocationSource] = useState<'gps' | 'club' | 'none'>('none');
@@ -760,7 +762,7 @@ export default function ExploreMatchesScreen() {
 
   return (
     <ImageBackground
-      source={require('@/assets/images/piste-noire.png')}
+      source={backgroundImage}
       style={styles.container}
       resizeMode="cover"
     >

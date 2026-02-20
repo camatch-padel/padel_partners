@@ -1,3 +1,4 @@
+import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/constants/supabase';
 import type { Court } from '@/types/match';
 import Avatar from '@/components/Avatar';
@@ -24,6 +25,7 @@ import {
 } from 'react-native';
 
 export default function ProfileScreen() {
+  const { backgroundImage } = useTheme();
   const { setHasProfile } = useProfile();
   const [profile, setProfile] = useState<any>(null);
   const [username, setUsername] = useState('');
@@ -315,7 +317,7 @@ export default function ProfileScreen() {
 
   return (
     <ImageBackground
-      source={require('@/assets/images/piste-noire.png')}
+      source={backgroundImage}
       style={styles.container}
       resizeMode="cover"
     >

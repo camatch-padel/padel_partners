@@ -6,6 +6,8 @@ import { supabase } from '@/constants/supabase';
 import { useFocusEffect } from '@react-navigation/native';
 import { ProfileProvider, useProfile } from '@/contexts/ProfileContext';
 import { NotificationsProvider, useNotifications } from '@/contexts/NotificationsContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
+import { NotificationPrefsProvider } from '@/contexts/NotificationPrefsContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function TabLayoutInner() {
@@ -123,6 +125,16 @@ function TabLayoutInner() {
         }}
       />
       <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Paramètres',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="settings-outline" size={size} color={color} />
+          ),
+          href: hasProfile === false ? null : '/(tabs)/settings',
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profil',
@@ -138,10 +150,14 @@ function TabLayoutInner() {
 
 export default function TabLayout() {
   return (
-    <ProfileProvider>
-      <NotificationsProvider>
-        <TabLayoutInner />
-      </NotificationsProvider>
-    </ProfileProvider>
+    <ThemeProvider>
+      <NotificationPrefsProvider>
+        <ProfileProvider>
+          <NotificationsProvider>
+            <TabLayoutInner />
+          </NotificationsProvider>
+        </ProfileProvider>
+      </NotificationPrefsProvider>
+    </ThemeProvider>
   );
 }

@@ -1,3 +1,4 @@
+import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/constants/supabase';
 import type { MatchWithDetails, MatchRequest, MatchWaitlistEntry, MatchResult, MatchRating, MatchMessage } from '@/types/match';
 import { Ionicons } from '@expo/vector-icons';
@@ -52,6 +53,7 @@ const TABS: TabConfig[] = [
 ];
 
 export default function MyMatchDetailScreen() {
+  const { backgroundImage } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [activeTab, setActiveTab] = useState<Tab>('edit');
   const [loading, setLoading] = useState(true);
@@ -1223,7 +1225,7 @@ export default function MyMatchDetailScreen() {
   const visibleTabs = TABS.filter(t => t.showWhen(match?.status || '', isCreator));
 
   return (
-    <ImageBackground source={require('@/assets/images/piste-noire.png')} resizeMode="cover" style={styles.container}>
+    <ImageBackground source={backgroundImage} resizeMode="cover" style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>

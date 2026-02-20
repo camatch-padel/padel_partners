@@ -1,3 +1,4 @@
+import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/constants/supabase';
 import Logo from '@/components/Logo';
 import Avatar from '@/components/Avatar';
@@ -120,6 +121,7 @@ function PremiumSearchButton({
 }
 
 export default function HomeScreen() {
+  const { backgroundImage } = useTheme();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [myMatches, setMyMatches] = useState<MyMatch[]>([]);
@@ -615,7 +617,7 @@ export default function HomeScreen() {
 
   return (
     <ImageBackground
-      source={require('@/assets/images/piste-noire.png')}
+      source={backgroundImage}
       style={styles.container}
       resizeMode="cover"
     >

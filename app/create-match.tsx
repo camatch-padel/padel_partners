@@ -1,3 +1,4 @@
+import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/constants/supabase';
 import { DAYS_OF_WEEK, DURATIONS, FORMATS, MONTHS, STEP_TITLES, TIME_SLOTS, VISIBILITY_OPTIONS } from '@/constants/match-constants';
 import LevelPyramid from '@/components/LevelPyramid';
@@ -24,6 +25,7 @@ import {
 const { width } = Dimensions.get('window');
 
 export default function CreateMatchModal() {
+  const { backgroundImage } = useTheme();
   // État du formulaire
   const [formData, setFormData] = useState<MatchFormData>({
     date: new Date(),
@@ -626,7 +628,7 @@ export default function CreateMatchModal() {
 
   return (
     <ImageBackground
-      source={require('@/assets/images/piste-noire.png')}
+      source={backgroundImage}
       style={styles.container}
       resizeMode="cover"
     >
