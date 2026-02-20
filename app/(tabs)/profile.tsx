@@ -25,7 +25,10 @@ import {
 } from 'react-native';
 
 export default function ProfileScreen() {
-  const { backgroundImage } = useTheme();
+  const { backgroundImage, theme } = useTheme();
+  const isDark = theme === 'dark';
+  const inputBg = isDark ? '#1A1A1A' : '#FFFFFF';
+  const inputText = isDark ? '#FFFFFF' : '#111111';
   const { setHasProfile } = useProfile();
   const [profile, setProfile] = useState<any>(null);
   const [username, setUsername] = useState('');
@@ -367,7 +370,7 @@ export default function ProfileScreen() {
         <View style={styles.form}>
           <Text style={styles.label}>Prénom *</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: inputBg, color: inputText }]}
             placeholder="Ex: Jean"
             placeholderTextColor="#666666"
             value={firstName}
@@ -394,9 +397,9 @@ export default function ProfileScreen() {
 
           <Text style={styles.label}>Club (optionnel)</Text>
           {courtId ? (
-            <View style={styles.selectedClub}>
+            <View style={[styles.selectedClub, { backgroundColor: inputBg }]}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.selectedClubName}>
+                <Text style={[styles.selectedClubName, { color: inputText }]}>
                   {courts.find(c => c.id === courtId)?.name || 'Club sélectionné'}
                 </Text>
                 <Text style={styles.selectedClubCity}>
@@ -412,7 +415,7 @@ export default function ProfileScreen() {
             </View>
           ) : (
             <Pressable
-              style={styles.clubPickerToggle}
+              style={[styles.clubPickerToggle, { backgroundColor: inputBg }]}
               onPress={() => setShowClubPicker(!showClubPicker)}
             >
               <Ionicons name="business-outline" size={20} color="#D4AF37" />
@@ -433,10 +436,10 @@ export default function ProfileScreen() {
 
             return (
               <View style={styles.clubPickerContainer}>
-                <View style={styles.clubSearchContainer}>
+                <View style={[styles.clubSearchContainer, { backgroundColor: inputBg }]}>
                   <Ionicons name="search" size={20} color="#D4AF37" />
                   <TextInput
-                    style={styles.clubSearchInput}
+                    style={[styles.clubSearchInput, { color: inputText }]}
                     placeholder="Rechercher par nom ou ville..."
                     placeholderTextColor="#666666"
                     value={clubSearch}
@@ -455,7 +458,7 @@ export default function ProfileScreen() {
                     <Pressable
                       key={court.id}
                       style={[
-                        styles.clubItem,
+                        styles.clubItem, { backgroundColor: inputBg },
                         courtId === court.id && styles.clubItemSelected
                       ]}
                       onPress={() => {

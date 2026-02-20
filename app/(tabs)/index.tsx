@@ -121,7 +121,18 @@ function PremiumSearchButton({
 }
 
 export default function HomeScreen() {
-  const { backgroundImage } = useTheme();
+  const { backgroundImage, theme } = useTheme();
+  const isDark = theme === 'dark';
+  const C = {
+    cardBg: isDark ? (Platform.OS === 'android' ? '#0E1014' : 'rgba(16, 18, 22, 0.62)') : 'rgba(255, 255, 255, 0.78)',
+    cardText: isDark ? '#FFFFFF' : '#111111',
+    cardSubtext: isDark ? '#AAAAAA' : '#444444',
+    statBg: isDark ? 'rgba(20, 19, 17, 0.78)' : 'rgba(255, 255, 255, 0.75)',
+    gradientColors: isDark
+      ? ['rgba(28, 23, 12, 0.94)', 'rgba(16, 14, 10, 0.96)', 'rgba(8, 8, 9, 0.98)'] as const
+      : ['rgba(255, 255, 255, 0.92)', 'rgba(248, 245, 235, 0.95)', 'rgba(240, 238, 228, 0.98)'] as const,
+    levelBarBg: isDark ? '#141414' : '#DDDDDD',
+  };
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [myMatches, setMyMatches] = useState<MyMatch[]>([]);
@@ -646,52 +657,52 @@ export default function HomeScreen() {
 
           <View style={styles.playerStatsCard}>
             <LinearGradient
-              colors={['rgba(28, 23, 12, 0.94)', 'rgba(16, 14, 10, 0.96)', 'rgba(8, 8, 9, 0.98)']}
+              colors={C.gradientColors}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.playerStatsGradient}
             >
               <View style={styles.playerStatsHeaderRow}>
-                <Text style={styles.playerStatsTitle}>Progression joueur</Text>
-                <Text style={styles.playerStatsXp}>XP {playerStats.totalMatches * 12}</Text>
+                <Text style={[styles.playerStatsTitle, { color: C.cardText }]}>Progression joueur</Text>
+                <Text style={[styles.playerStatsXp, { color: C.cardText }]}>XP {playerStats.totalMatches * 12}</Text>
               </View>
 
-              <Text style={styles.playerStatsSectionLabel}>Niveau déclaré vs estimé</Text>
+              <Text style={[styles.playerStatsSectionLabel, { color: C.cardSubtext }]}>Niveau déclaré vs estimé</Text>
               <View style={styles.levelCompareRow}>
-                <Text style={styles.levelCompareValue}>Déclaré {declaredLevel.toFixed(1)}</Text>
-                <Text style={styles.levelCompareValue}>Estimé {estimatedLevel.toFixed(1)}</Text>
+                <Text style={[styles.levelCompareValue, { color: C.cardText }]}>Déclaré {declaredLevel.toFixed(1)}</Text>
+                <Text style={[styles.levelCompareValue, { color: C.cardText }]}>Estimé {estimatedLevel.toFixed(1)}</Text>
               </View>
               <View style={styles.levelBarTrack}>
                 <View style={[styles.levelBarDeclared, { width: `${declaredLevelPct}%` }]} />
-                <View style={[styles.levelBarEstimated, { width: `${estimatedLevelPct}%` }]} />
+                <View style={[styles.levelBarEstimated, { width: `${estimatedLevelPct}%`, backgroundColor: C.levelBarBg }]} />
               </View>
               <View style={styles.levelLegendRow}>
                 <View style={styles.levelLegendItem}>
                   <View style={styles.levelLegendDeclared} />
-                  <Text style={styles.levelLegendText}>Déclaré</Text>
+                  <Text style={[styles.levelLegendText, { color: C.cardSubtext }]}>Déclaré</Text>
                 </View>
                 <View style={styles.levelLegendItem}>
                   <View style={styles.levelLegendEstimated} />
-                  <Text style={styles.levelLegendText}>Estimé</Text>
+                  <Text style={[styles.levelLegendText, { color: C.cardSubtext }]}>Estimé</Text>
                 </View>
               </View>
 
               <View style={styles.statsGrid}>
-                <View style={styles.statCell}>
-                  <Text style={styles.statValue}>{playerStats.totalMatches}</Text>
-                  <Text style={styles.statLabel}>Parties jouées</Text>
+                <View style={[styles.statCell, { backgroundColor: C.statBg }]}>
+                  <Text style={[styles.statValue, { color: C.cardText }]}>{playerStats.totalMatches}</Text>
+                  <Text style={[styles.statLabel, { color: C.cardSubtext }]}>Parties jouées</Text>
                 </View>
-                <View style={styles.statCell}>
-                  <Text style={styles.statValue}>{playerStats.wins}/{playerStats.losses}</Text>
-                  <Text style={styles.statLabel}>Victoires / Défaites</Text>
+                <View style={[styles.statCell, { backgroundColor: C.statBg }]}>
+                  <Text style={[styles.statValue, { color: C.cardText }]}>{playerStats.wins}/{playerStats.losses}</Text>
+                  <Text style={[styles.statLabel, { color: C.cardSubtext }]}>Victoires / Défaites</Text>
                 </View>
-                <View style={styles.statCell}>
-                  <Text style={styles.statValue}>{winRate}%</Text>
-                  <Text style={styles.statLabel}>Ratio victoire</Text>
+                <View style={[styles.statCell, { backgroundColor: C.statBg }]}>
+                  <Text style={[styles.statValue, { color: C.cardText }]}>{winRate}%</Text>
+                  <Text style={[styles.statLabel, { color: C.cardSubtext }]}>Ratio victoire</Text>
                 </View>
-                <View style={styles.statCell}>
-                  <Text style={styles.statValue}>{playerStats.leftMatches}/{playerStats.rightMatches}</Text>
-                  <Text style={styles.statLabel}>Gauche / Droite</Text>
+                <View style={[styles.statCell, { backgroundColor: C.statBg }]}>
+                  <Text style={[styles.statValue, { color: C.cardText }]}>{playerStats.leftMatches}/{playerStats.rightMatches}</Text>
+                  <Text style={[styles.statLabel, { color: C.cardSubtext }]}>Gauche / Droite</Text>
                 </View>
               </View>
             </LinearGradient>
@@ -724,7 +735,7 @@ export default function HomeScreen() {
                 return (
                   <Pressable
                     key={match.id}
-                    style={({ pressed }) => [styles.matchCard, styles.matchCardCompact, pressed && styles.cardPressed]}
+                    style={({ pressed }) => [styles.matchCard, styles.matchCardCompact, { backgroundColor: C.cardBg }, pressed && styles.cardPressed]}
                     onPress={() => handleMatchPress(match)}
                   >
                     <View style={styles.matchCardHeader}>
@@ -739,7 +750,7 @@ export default function HomeScreen() {
                     </View>
 
                     <View style={styles.matchDateTimeRow}>
-                      <Text style={styles.matchDate}>{formatDate(match.date)}</Text>
+                      <Text style={[styles.matchDate, { color: C.cardText }]}>{formatDate(match.date)}</Text>
                       <Text style={[styles.matchTime, { color: accentColor }]}>
                         {formatTimeSlot(match.time_slot)}
                       </Text>
@@ -777,7 +788,7 @@ export default function HomeScreen() {
                           </Text>
                         )}
                       </View>
-                      <Text style={styles.matchPlayers}>
+                      <Text style={[styles.matchPlayers, { color: C.cardText }]}>
                         {match.participants_count}/{match.format}
                       </Text>
                     </View>
@@ -785,11 +796,11 @@ export default function HomeScreen() {
                 );
               })}
               <Pressable
-                style={({ pressed }) => [styles.matchCard, styles.matchCardCompact, styles.createMatchShortcutCard, pressed && styles.cardPressed]}
+                style={({ pressed }) => [styles.matchCard, styles.matchCardCompact, styles.createMatchShortcutCard, { backgroundColor: C.cardBg }, pressed && styles.cardPressed]}
                 onPress={() => router.push('/create-match')}
               >
                 <Ionicons name="add-circle-outline" size={30} color="#D4AF37" />
-                <Text style={styles.groupName}>Creer une partie</Text>
+                <Text style={[styles.groupName, { color: C.cardText }]}>Creer une partie</Text>
               </Pressable>
 
               {completedMatches.map((match) => {
@@ -805,7 +816,7 @@ export default function HomeScreen() {
                 return (
                   <Pressable
                     key={match.id}
-                    style={({ pressed }) => [styles.matchCard, styles.matchCardCompact, pressed && styles.cardPressed]}
+                    style={({ pressed }) => [styles.matchCard, styles.matchCardCompact, { backgroundColor: C.cardBg }, pressed && styles.cardPressed]}
                     onPress={() => handleMatchPress(match)}
                   >
                     <View style={styles.matchCardHeader}>
@@ -820,7 +831,7 @@ export default function HomeScreen() {
                     </View>
 
                     <View style={styles.matchDateTimeRow}>
-                      <Text style={styles.matchDate}>{formatDate(match.date)}</Text>
+                      <Text style={[styles.matchDate, { color: C.cardText }]}>{formatDate(match.date)}</Text>
                       <Text style={[styles.matchTime, { color: accentColor }]}>
                         {formatTimeSlot(match.time_slot)}
                       </Text>
@@ -858,7 +869,7 @@ export default function HomeScreen() {
                           </Text>
                         )}
                       </View>
-                      <Text style={styles.matchPlayers}>
+                      <Text style={[styles.matchPlayers, { color: C.cardText }]}>
                         {match.participants_count}/{match.format}
                       </Text>
                     </View>
@@ -887,7 +898,7 @@ export default function HomeScreen() {
                 return (
                   <Pressable
                     key={tournament.id}
-                    style={({ pressed }) => [styles.matchCard, styles.matchCardCompact, pressed && styles.cardPressed]}
+                    style={({ pressed }) => [styles.matchCard, styles.matchCardCompact, { backgroundColor: C.cardBg }, pressed && styles.cardPressed]}
                     onPress={() => router.push(`/my-tournament/${tournament.id}` as any)}
                   >
                     <View style={styles.matchCardHeader}>
@@ -904,7 +915,7 @@ export default function HomeScreen() {
                     </View>
 
                     <View style={styles.matchDateTimeRow}>
-                      <Text style={styles.matchDate}>{formatDate(tournament.date)}</Text>
+                      <Text style={[styles.matchDate, { color: C.cardText }]}>{formatDate(tournament.date)}</Text>
                       <Text style={[styles.matchTime, { color: accentColor }]}>
                         {tournament.time_slot || 'Heure libre'}
                       </Text>
@@ -917,24 +928,24 @@ export default function HomeScreen() {
                     )}
 
                     <View style={styles.matchFooter}>
-                      <Text style={styles.matchPlayers}>{tournament.category}</Text>
-                      <Text style={styles.matchPlayers}>{tournament.event_type}</Text>
+                      <Text style={[styles.matchPlayers, { color: C.cardText }]}>{tournament.category}</Text>
+                      <Text style={[styles.matchPlayers, { color: C.cardText }]}>{tournament.event_type}</Text>
                     </View>
                   </Pressable>
                 );
               })}
               <Pressable
-                style={({ pressed }) => [styles.matchCard, styles.matchCardCompact, styles.createTournamentShortcutCard, pressed && styles.cardPressed]}
+                style={({ pressed }) => [styles.matchCard, styles.matchCardCompact, styles.createTournamentShortcutCard, { backgroundColor: C.cardBg }, pressed && styles.cardPressed]}
                 onPress={() => router.push('/create-tournament')}
               >
                 <Ionicons name="add-circle-outline" size={30} color="#D4AF37" />
-                <Text style={styles.groupName}>Créer un tournoi</Text>
+                <Text style={[styles.groupName, { color: C.cardText }]}>Créer un tournoi</Text>
               </Pressable>
 
               {partnerFoundTournaments.map((tournament) => (
                   <Pressable
                     key={tournament.id}
-                    style={({ pressed }) => [styles.matchCard, styles.matchCardCompact, pressed && styles.cardPressed]}
+                    style={({ pressed }) => [styles.matchCard, styles.matchCardCompact, { backgroundColor: C.cardBg }, pressed && styles.cardPressed]}
                     onPress={() => router.push(`/my-tournament/${tournament.id}` as any)}
                   >
                     <View style={styles.matchCardHeader}>
@@ -944,7 +955,7 @@ export default function HomeScreen() {
                     </View>
 
                     <View style={styles.matchDateTimeRow}>
-                      <Text style={styles.matchDate}>{formatDate(tournament.date)}</Text>
+                      <Text style={[styles.matchDate, { color: C.cardText }]}>{formatDate(tournament.date)}</Text>
                       <Text style={[styles.matchTime, { color: '#44DD44' }]}>
                         {tournament.time_slot || 'Heure libre'}
                       </Text>
@@ -957,8 +968,8 @@ export default function HomeScreen() {
                     )}
 
                     <View style={styles.matchFooter}>
-                      <Text style={styles.matchPlayers}>{tournament.category}</Text>
-                      <Text style={styles.matchPlayers}>{tournament.event_type}</Text>
+                      <Text style={[styles.matchPlayers, { color: C.cardText }]}>{tournament.category}</Text>
+                      <Text style={[styles.matchPlayers, { color: C.cardText }]}>{tournament.event_type}</Text>
                     </View>
                   </Pressable>
               ))}
@@ -966,7 +977,7 @@ export default function HomeScreen() {
               {completedTournaments.map((tournament) => (
                   <Pressable
                     key={tournament.id}
-                    style={({ pressed }) => [styles.matchCard, styles.matchCardCompact, { borderColor: '#FF4444' }, pressed && styles.cardPressed]}
+                    style={({ pressed }) => [styles.matchCard, styles.matchCardCompact, { borderColor: '#FF4444', backgroundColor: C.cardBg }, pressed && styles.cardPressed]}
                     onPress={() => router.push(`/my-tournament/${tournament.id}` as any)}
                   >
                     <View style={styles.matchCardHeader}>
@@ -976,7 +987,7 @@ export default function HomeScreen() {
                     </View>
 
                     <View style={styles.matchDateTimeRow}>
-                      <Text style={styles.matchDate}>{formatDate(tournament.date)}</Text>
+                      <Text style={[styles.matchDate, { color: C.cardText }]}>{formatDate(tournament.date)}</Text>
                       <Text style={[styles.matchTime, { color: '#FF4444' }]}>
                         {tournament.time_slot || 'Heure libre'}
                       </Text>
@@ -989,8 +1000,8 @@ export default function HomeScreen() {
                     )}
 
                     <View style={styles.matchFooter}>
-                      <Text style={styles.matchPlayers}>{tournament.category}</Text>
-                      <Text style={styles.matchPlayers}>{tournament.event_type}</Text>
+                      <Text style={[styles.matchPlayers, { color: C.cardText }]}>{tournament.category}</Text>
+                      <Text style={[styles.matchPlayers, { color: C.cardText }]}>{tournament.event_type}</Text>
                     </View>
                   </Pressable>
               ))}
@@ -1007,11 +1018,11 @@ export default function HomeScreen() {
             {myGroups.map((group) => (
               <Pressable
                 key={group.id}
-                style={({ pressed }) => [styles.groupCard, pressed && styles.cardPressed]}
+                style={({ pressed }) => [styles.groupCard, { backgroundColor: C.cardBg }, pressed && styles.cardPressed]}
                 onPress={() => router.push(`/group/${group.id}` as any)}
               >
                 <Ionicons name={group.icon as any} size={30} color="#D4AF37" />
-                <Text style={styles.groupName} numberOfLines={2}>
+                <Text style={[styles.groupName, { color: C.cardText }]} numberOfLines={2}>
                   {group.name}
                 </Text>
                 <Text style={styles.groupMembers}>
@@ -1021,11 +1032,11 @@ export default function HomeScreen() {
             ))}
 
             <Pressable
-              style={({ pressed }) => [styles.groupCard, pressed && styles.cardPressed]}
+              style={({ pressed }) => [styles.groupCard, { backgroundColor: C.cardBg }, pressed && styles.cardPressed]}
               onPress={() => router.push('/create-group')}
             >
               <Ionicons name="add-circle-outline" size={30} color="#D4AF37" />
-              <Text style={styles.groupName}>Creer un groupe</Text>
+              <Text style={[styles.groupName, { color: C.cardText }]}>Creer un groupe</Text>
             </Pressable>
           </ScrollView>
         </View>
