@@ -4,6 +4,7 @@ import { useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -95,7 +96,7 @@ export default function AuthScreen() {
             <Text style={styles.label}>Mot de passe</Text>
             <TextInput
               style={styles.input}
-              placeholder="ïïïïïïïï"
+              placeholder="ÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩ"
               placeholderTextColor="rgba(255, 255, 255, 0.4)"
               value={password}
               onChangeText={setPassword}
@@ -110,6 +111,21 @@ export default function AuthScreen() {
           >
             <Text style={styles.btnLoginText}>{loading ? '...' : isSignUp ? "S'inscrire" : 'Se connecter'}</Text>
           </Pressable>
+
+          {isSignUp && (
+            <View style={styles.legalNotice}>
+              <Text style={styles.legalNoticeText}>
+                En cr√©ant un compte, vous acceptez notre{' '}
+                <Text
+                  style={styles.legalNoticeLink}
+                  onPress={() => Linking.openURL('https://camatch-padel.github.io/privacy-policy.html')}
+                >
+                  Politique de confidentialit√©
+                </Text>
+                .{'\n'}Votre nom, pr√©nom, club et niveau seront visibles publiquement dans l'application.
+              </Text>
+            </View>
+          )}
 
           {!isSignUp && (
             <Pressable style={styles.forgotPassword} onPress={handleForgotPassword}>
@@ -223,5 +239,18 @@ const styles = StyleSheet.create({
     color: '#0066FF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  legalNotice: {
+    marginTop: 16,
+  },
+  legalNoticeText: {
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  legalNoticeLink: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    textDecorationLine: 'underline',
   },
 });
