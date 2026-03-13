@@ -6,10 +6,10 @@
 -- ================================================================
 
 -- ============================================
--- 0. TABLE Profiles + Auto-création via trigger
+-- 0. TABLE profiles + Auto-création via trigger
 -- ============================================
 
-CREATE TABLE IF NOT EXISTS "Profiles" (
+CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   username TEXT UNIQUE,
   firstname TEXT,
@@ -22,26 +22,26 @@ CREATE TABLE IF NOT EXISTS "Profiles" (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- RLS sur Profiles
-ALTER TABLE "Profiles" ENABLE ROW LEVEL SECURITY;
+-- RLS sur profiles
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Users can view all profiles" ON "Profiles";
+DROP POLICY IF EXISTS "Users can view all profiles" ON profiles;
 CREATE POLICY "Users can view all profiles"
-  ON "Profiles" FOR SELECT USING (true);
+  ON profiles FOR SELECT USING (true);
 
-DROP POLICY IF EXISTS "Users can insert their own profile" ON "Profiles";
+DROP POLICY IF EXISTS "Users can insert their own profile" ON profiles;
 CREATE POLICY "Users can insert their own profile"
-  ON "Profiles" FOR INSERT WITH CHECK (auth.uid() = id);
+  ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
 
-DROP POLICY IF EXISTS "Users can update their own profile" ON "Profiles";
+DROP POLICY IF EXISTS "Users can update their own profile" ON profiles;
 CREATE POLICY "Users can update their own profile"
-  ON "Profiles" FOR UPDATE USING (auth.uid() = id);
+  ON profiles FOR UPDATE USING (auth.uid() = id);
 
 -- Trigger : auto-créer un profil quand un user s'inscrit
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public."Profiles" (id)
+  INSERT INTO public.profiles (id)
   VALUES (NEW.id)
   ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
@@ -68,13 +68,13 @@ CREATE TABLE IF NOT EXISTS courts (
 );
 
 -- ============================================
--- 2. AJOUT court_id SUR Profiles (dépend de courts)
+-- 2. AJOUT court_id SUR profiles (dépend de courts)
 -- ============================================
 
-ALTER TABLE "Profiles"
+ALTER TABLE profiles
 ADD COLUMN IF NOT EXISTS court_id UUID REFERENCES courts(id) ON DELETE SET NULL;
 
-CREATE INDEX IF NOT EXISTS idx_profiles_avatar_url ON "Profiles"(avatar_url);
+CREATE INDEX IF NOT EXISTS idx_profiles_avatar_url ON profiles(avatar_url);
 
 -- ============================================
 -- 3. TABLE groups (Groupes Privés)
@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS groups (
   name TEXT NOT NULL,
   description TEXT,
   icon TEXT NOT NULL DEFAULT 'people',
-  creator_id UUID NOT NULL REFERENCES "Profiles"(id) ON DELETE CASCADE,
+  creator_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -99,7 +99,7 @@ CREATE INDEX IF NOT EXISTS idx_groups_creator_id ON groups(creator_id);
 CREATE TABLE IF NOT EXISTS group_members (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   group_id UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES "Profiles"(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(group_id, user_id)
 );
@@ -114,7 +114,7 @@ CREATE INDEX IF NOT EXISTS idx_group_members_user_id ON group_members(user_id);
 CREATE TABLE IF NOT EXISTS group_messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   group_id UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES "Profiles"(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   message TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -128,7 +128,7 @@ CREATE INDEX IF NOT EXISTS idx_group_messages_user_id ON group_messages(user_id)
 
 CREATE TABLE IF NOT EXISTS matches (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  creator_id UUID NOT NULL REFERENCES "Profiles"(id) ON DELETE CASCADE,
+  creator_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   date DATE NOT NULL,
   time_slot TIME NOT NULL,
   duration_minutes INTEGER NOT NULL CHECK (duration_minutes IN (60, 90, 120)),
@@ -155,7 +155,7 @@ CREATE INDEX IF NOT EXISTS idx_matches_visibility ON matches(visibility);
 CREATE TABLE IF NOT EXISTS match_participants (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES "Profiles"(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   joined_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(match_id, user_id)
 );
@@ -170,7 +170,7 @@ CREATE INDEX IF NOT EXISTS idx_participants_user ON match_participants(user_id);
 CREATE TABLE IF NOT EXISTS match_messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES "Profiles"(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   message TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -185,7 +185,7 @@ CREATE INDEX IF NOT EXISTS idx_match_messages_user_id ON match_messages(user_id)
 CREATE TABLE IF NOT EXISTS match_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES "Profiles"(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(match_id, user_id)
@@ -201,7 +201,7 @@ CREATE INDEX IF NOT EXISTS idx_match_requests_user_id ON match_requests(user_id)
 CREATE TABLE IF NOT EXISTS match_waitlist (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES "Profiles"(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   position INTEGER NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(match_id, user_id)
@@ -216,13 +216,13 @@ CREATE INDEX IF NOT EXISTS idx_match_waitlist_match_id ON match_waitlist(match_i
 CREATE TABLE IF NOT EXISTS match_results (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE UNIQUE,
-  team1_player1_id UUID NOT NULL REFERENCES "Profiles"(id),
+  team1_player1_id UUID NOT NULL REFERENCES profiles(id),
   team1_player1_position TEXT CHECK (team1_player1_position IN ('left', 'right')),
-  team1_player2_id UUID REFERENCES "Profiles"(id),
+  team1_player2_id UUID REFERENCES profiles(id),
   team1_player2_position TEXT CHECK (team1_player2_position IN ('left', 'right')),
-  team2_player1_id UUID NOT NULL REFERENCES "Profiles"(id),
+  team2_player1_id UUID NOT NULL REFERENCES profiles(id),
   team2_player1_position TEXT CHECK (team2_player1_position IN ('left', 'right')),
-  team2_player2_id UUID REFERENCES "Profiles"(id),
+  team2_player2_id UUID REFERENCES profiles(id),
   team2_player2_position TEXT CHECK (team2_player2_position IN ('left', 'right')),
   sets JSONB NOT NULL DEFAULT '[]',
   winner_team INTEGER CHECK (winner_team IN (1, 2)),
@@ -238,8 +238,8 @@ CREATE INDEX IF NOT EXISTS idx_match_results_match_id ON match_results(match_id)
 CREATE TABLE IF NOT EXISTS match_ratings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
-  rater_id UUID NOT NULL REFERENCES "Profiles"(id),
-  rated_id UUID NOT NULL REFERENCES "Profiles"(id),
+  rater_id UUID NOT NULL REFERENCES profiles(id),
+  rated_id UUID NOT NULL REFERENCES profiles(id),
   rating DECIMAL(3,1) NOT NULL CHECK (rating >= 1.0 AND rating <= 10.0),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(match_id, rater_id, rated_id)
@@ -253,7 +253,7 @@ CREATE INDEX IF NOT EXISTS idx_match_ratings_rated_id ON match_ratings(rated_id)
 
 CREATE TABLE IF NOT EXISTS tournaments (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  creator_id UUID NOT NULL REFERENCES "Profiles"(id) ON DELETE CASCADE,
+  creator_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   date DATE NOT NULL,
   time_slot TEXT,
   category TEXT NOT NULL CHECK (category IN ('P25', 'P50', 'P100', 'P250', 'P500', 'P1000', 'P2000')),
@@ -286,7 +286,7 @@ CREATE INDEX IF NOT EXISTS idx_tournaments_group_id ON tournaments(group_id);
 CREATE TABLE IF NOT EXISTS tournament_demands (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   tournament_id UUID NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES "Profiles"(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),
   created_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(tournament_id, user_id)
@@ -302,7 +302,7 @@ CREATE INDEX IF NOT EXISTS idx_tournament_demands_user ON tournament_demands(use
 CREATE TABLE IF NOT EXISTS tournament_messages (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   tournament_id UUID NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES "Profiles"(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   message TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now()
 );
@@ -387,14 +387,18 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE FUNCTION update_community_level()
 RETURNS TRIGGER AS $$
 BEGIN
-  UPDATE "Profiles"
-  SET community_level = (
-    SELECT ROUND(AVG(rating)::numeric, 1) FROM match_ratings WHERE rated_id = NEW.rated_id
-  ),
-  community_level_votes = (
-    SELECT COUNT(*) FROM match_ratings WHERE rated_id = NEW.rated_id
-  )
-  WHERE id = NEW.rated_id;
+  IF to_regclass('public.profiles') IS NOT NULL THEN
+    UPDATE public.profiles
+    SET community_level = (
+      SELECT ROUND(AVG(rating)::numeric, 1) FROM match_ratings WHERE rated_id = NEW.rated_id
+    ),
+    community_level_votes = (
+      SELECT COUNT(*) FROM match_ratings WHERE rated_id = NEW.rated_id
+    )
+    WHERE id = NEW.rated_id;
+  ELSE
+    RAISE EXCEPTION 'No profiles table found (expected public.profiles)';
+  END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -835,3 +839,4 @@ WHERE NOT EXISTS (SELECT 1 FROM courts LIMIT 1);
 --    - UPDATE : owner (auth.uid()::text = (storage.foldername(name))[1])
 --    - DELETE : owner (auth.uid()::text = (storage.foldername(name))[1])
 -- ================================================================
+

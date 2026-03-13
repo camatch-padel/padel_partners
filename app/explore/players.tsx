@@ -30,7 +30,8 @@ interface Player {
 }
 
 export default function ExplorePlayersScreen() {
-  const { backgroundImage } = useTheme();
+  const { backgroundImage, theme } = useTheme();
+  const isDark = theme === 'dark';
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [filteredPlayers, setFilteredPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
@@ -207,16 +208,17 @@ export default function ExplorePlayersScreen() {
 
     return (
       <View style={styles.row}>
-        <Text style={styles.cellName} numberOfLines={1}>
+        <Text style={[styles.cellName, !isDark && { color: '#111111' }]} numberOfLines={1}>
           {item.firstname} {item.lastname}
         </Text>
-        <Text style={styles.cellClub} numberOfLines={1}>
+        <Text style={[styles.cellClub, !isDark && { color: '#555555' }]} numberOfLines={1}>
           {item.court_name || '-'}
         </Text>
-        <Text style={styles.cellLevel}>{item.declared_level.toFixed(1)}</Text>
+        <Text style={[styles.cellLevel, !isDark && { color: '#111111' }]}>{item.declared_level.toFixed(1)}</Text>
         <Text
           style={[
             styles.cellLevel,
+            !isDark && { color: '#111111' },
             item.community_level != null &&
               item.community_level_votes > 0 &&
               item.community_level < item.declared_level && { color: '#FF4444' },
@@ -232,7 +234,7 @@ export default function ExplorePlayersScreen() {
   };
 
   const renderTableHeader = () => (
-    <View style={styles.tableHeader}>
+    <View style={[styles.tableHeader, !isDark && { backgroundColor: 'rgba(255,255,255,0.95)' }]}>
       <Text style={[styles.headerCell, styles.cellName]}>Nom</Text>
       <Text style={[styles.headerCell, styles.cellClub]}>Club</Text>
       <Text style={[styles.headerCell, styles.cellLevel]}>Déclaré</Text>
@@ -241,7 +243,7 @@ export default function ExplorePlayersScreen() {
   );
 
   const renderFilters = () => (
-    <View style={styles.filtersContainer}>
+    <View style={[styles.filtersContainer, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]}>
       <View style={styles.filterSection}>
         <Text style={styles.filterLabel}>Niveau déclaré</Text>
         <View style={styles.levelRange}>
@@ -326,17 +328,17 @@ export default function ExplorePlayersScreen() {
         </Pressable>
         <Text style={styles.headerTitle}>Rechercher un joueur</Text>
         <Pressable
-          style={styles.filterToggle}
+          style={[styles.filterToggle, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]}
           onPress={() => setShowFilters(!showFilters)}
         >
           <Ionicons name="filter" size={18} color="#D4AF37" />
         </Pressable>
       </View>
 
-      <View style={styles.searchContainer}>
+      <View style={[styles.searchContainer, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]}>
         <Ionicons name="search" size={20} color="#D4AF37" />
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, !isDark && { color: '#111111' }]}
           placeholder="Rechercher par nom ou prénom..."
           placeholderTextColor="#666666"
           value={search}

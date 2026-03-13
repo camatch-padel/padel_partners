@@ -1,6 +1,7 @@
 import { supabase } from '@/constants/supabase';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { ThemeProvider as AppThemeProvider } from '@/contexts/ThemeContext';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState, useRef } from 'react';
@@ -88,6 +89,7 @@ export default function RootLayout() {
   if (loading) return null;
 
   return (
+    <AppThemeProvider>
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
@@ -109,5 +111,6 @@ export default function RootLayout() {
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>
+    </AppThemeProvider>
   );
 }

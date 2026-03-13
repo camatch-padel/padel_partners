@@ -4,7 +4,7 @@
 
 CREATE TABLE IF NOT EXISTS notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES "Profiles"(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   type TEXT NOT NULL CHECK (type IN (
     'match_full',
     'match_player_joined',
@@ -76,7 +76,7 @@ BEGIN
   -- Récupérer le nom du joueur qui rejoint
   SELECT COALESCE(firstname || ' ' || lastname, username, 'Un joueur')
   INTO joiner_name
-  FROM "Profiles" WHERE id = NEW.user_id;
+  FROM profiles WHERE id = NEW.user_id;
 
   -- 1) Notifier le CRÉATEUR qu'un joueur a rejoint (sauf si c'est lui-même)
   IF NEW.user_id != match_record.creator_id THEN
@@ -137,7 +137,7 @@ BEGIN
 
   SELECT COALESCE(firstname || ' ' || lastname, username, 'Un joueur')
   INTO demander_name
-  FROM "Profiles" WHERE id = NEW.user_id;
+  FROM profiles WHERE id = NEW.user_id;
 
   INSERT INTO notifications (user_id, type, title, message, entity_type, entity_id)
   VALUES (
@@ -231,7 +231,7 @@ BEGIN
 
   SELECT COALESCE(firstname || ' ' || lastname, username, 'Un joueur')
   INTO creator_name
-  FROM "Profiles" WHERE id = NEW.creator_id;
+  FROM profiles WHERE id = NEW.creator_id;
 
   SELECT g.name INTO group_name
   FROM groups g WHERE g.id = NEW.group_id;
@@ -294,13 +294,13 @@ BEGIN
 
   SELECT COALESCE(firstname || ' ' || lastname, username, 'Un joueur')
   INTO creator_name
-  FROM "Profiles" WHERE id = NEW.creator_id;
+  FROM profiles WHERE id = NEW.creator_id;
 
   -- Pour chaque joueur ayant un club avec coordonnées et un niveau déclaré
   FOR player IN
     SELECT p.id AS user_id, p.declared_level,
            pc.latitude AS player_lat, pc.longitude AS player_lon
-    FROM "Profiles" p
+    FROM profiles p
     JOIN courts pc ON pc.id = p.court_id
     WHERE p.id != NEW.creator_id
       AND p.declared_level IS NOT NULL
@@ -361,7 +361,7 @@ BEGIN
 
   SELECT COALESCE(firstname || ' ' || lastname, username, 'Un joueur')
   INTO creator_name
-  FROM "Profiles" WHERE id = NEW.creator_id;
+  FROM profiles WHERE id = NEW.creator_id;
 
   SELECT g.name INTO group_name
   FROM groups g WHERE g.id = NEW.group_id;
@@ -389,3 +389,4 @@ DROP TRIGGER IF EXISTS trigger_notify_group_tournament ON tournaments;
 CREATE TRIGGER trigger_notify_group_tournament
   AFTER INSERT ON tournaments
   FOR EACH ROW EXECUTE FUNCTION notify_on_group_tournament_insert();
+

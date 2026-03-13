@@ -25,7 +25,8 @@ import {
 } from '@/constants/tournament-constants';
 
 export default function TournamentExploreScreen() {
-  const { backgroundImage } = useTheme();
+  const { backgroundImage, theme } = useTheme();
+  const isDark = theme === 'dark';
   const [tournaments, setTournaments] = useState<TournamentWithDistance[]>([]);
   const [loading, setLoading] = useState(true);
   const [locationSource, setLocationSource] = useState<'gps' | 'club' | 'none'>('none');
@@ -339,11 +340,11 @@ export default function TournamentExploreScreen() {
     const isExpanded = expandedCards.has(item.id);
 
     return (
-      <Pressable style={styles.card} onPress={() => toggleCard(item.id)}>
+      <Pressable style={[styles.card, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]} onPress={() => toggleCard(item.id)}>
         {/* Header toujours visible */}
         <View style={styles.cardHeader}>
           <View style={styles.cardDateContainer}>
-            <Text style={styles.cardDate}>{formatDate(item.date)}</Text>
+            <Text style={[styles.cardDate, !isDark && { color: '#111111' }]}>{formatDate(item.date)}</Text>
             <Text style={styles.cardTime}>
               {item.time_slot || 'Heure non précisée'}
             </Text>
@@ -402,7 +403,7 @@ export default function TournamentExploreScreen() {
                   style={styles.infoIcon}
                 />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.infoText}>
+                  <Text style={[styles.infoText, !isDark && { color: '#111111' }]}>
                     {item.court
                       ? `${item.court.name} - ${item.court.city}`
                       : 'Club non spécifié'}
@@ -453,7 +454,7 @@ export default function TournamentExploreScreen() {
             <View style={styles.cardFooter}>
               <View style={styles.footerBadges}>
                 <Pressable
-                  style={styles.chatButton}
+                  style={[styles.chatButton, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]}
                   onPress={() =>
                     router.push(`/my-tournament/${item.id}` as any)
                   }
@@ -492,7 +493,7 @@ export default function TournamentExploreScreen() {
   };
 
   const renderFilters = () => (
-    <View style={styles.filtersContainer}>
+    <View style={[styles.filtersContainer, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]}>
       <View style={styles.filterSection}>
         <Text style={styles.filterLabel}>Distance maximale</Text>
         <View style={styles.distanceValueContainer}>
@@ -544,6 +545,7 @@ export default function TournamentExploreScreen() {
             style={[
               styles.filterButton,
               categoryFilter === 'all' && styles.filterButtonActive,
+              !isDark && categoryFilter !== 'all' && { backgroundColor: 'rgba(255,255,255,0.9)' },
             ]}
             onPress={() => setCategoryFilter('all')}
           >
@@ -562,6 +564,7 @@ export default function TournamentExploreScreen() {
               style={[
                 styles.filterButton,
                 categoryFilter === cat.value && styles.filterButtonActive,
+                !isDark && categoryFilter !== cat.value && { backgroundColor: 'rgba(255,255,255,0.9)' },
               ]}
               onPress={() => setCategoryFilter(cat.value)}
             >
@@ -607,6 +610,7 @@ export default function TournamentExploreScreen() {
             style={[
               styles.filterButton,
               eventTypeFilter === 'all' && styles.filterButtonActive,
+              !isDark && eventTypeFilter !== 'all' && { backgroundColor: 'rgba(255,255,255,0.9)' },
             ]}
             onPress={() => setEventTypeFilter('all')}
           >
@@ -625,6 +629,7 @@ export default function TournamentExploreScreen() {
               style={[
                 styles.filterButton,
                 eventTypeFilter === type.value && styles.filterButtonActive,
+                !isDark && eventTypeFilter !== type.value && { backgroundColor: 'rgba(255,255,255,0.9)' },
               ]}
               onPress={() => setEventTypeFilter(type.value)}
             >
@@ -648,6 +653,7 @@ export default function TournamentExploreScreen() {
             style={[
               styles.filterButton,
               positionFilter === 'all' && styles.filterButtonActive,
+              !isDark && positionFilter !== 'all' && { backgroundColor: 'rgba(255,255,255,0.9)' },
             ]}
             onPress={() => setPositionFilter('all')}
           >
@@ -666,6 +672,7 @@ export default function TournamentExploreScreen() {
               style={[
                 styles.filterButton,
                 positionFilter === pos.value && styles.filterButtonActive,
+                !isDark && positionFilter !== pos.value && { backgroundColor: 'rgba(255,255,255,0.9)' },
               ]}
               onPress={() => setPositionFilter(pos.value)}
             >
@@ -701,7 +708,7 @@ export default function TournamentExploreScreen() {
           </View>
         </View>
         <Pressable
-          style={styles.filterToggle}
+          style={[styles.filterToggle, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]}
           onPress={() => setShowFilters(!showFilters)}
         >
           <Ionicons

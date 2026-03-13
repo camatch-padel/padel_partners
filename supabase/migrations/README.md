@@ -12,7 +12,7 @@ supabase-migrations.sql
 
 ### 2. Profils et Avatars
 ```sql
--- Ajouter colonnes avatar, firstname, lastname à Profiles
+-- Ajouter colonnes avatar, firstname, lastname à profiles
 supabase-migration-avatars.sql
 ```
 
@@ -89,18 +89,18 @@ Après les migrations, configurer le storage:
 
 ## Row Level Security Policies
 
-### Profiles
+### profiles
 ```sql
 -- Lecture: tout le monde peut voir tous les profils
 CREATE POLICY "Users can view all profiles"
-ON "Profiles"
+ON profiles
 FOR SELECT
 TO authenticated
 USING (true);
 
 -- Update: seulement son propre profil
 CREATE POLICY "Users can update own profile"
-ON "Profiles"
+ON profiles
 FOR UPDATE
 TO authenticated
 USING (auth.uid() = id);
@@ -176,3 +176,4 @@ WITH CHECK (auth.uid() = user_id);
 3. Attendre la confirmation
 4. Noter l'ID du backup
 5. Puis exécuter les migrations
+

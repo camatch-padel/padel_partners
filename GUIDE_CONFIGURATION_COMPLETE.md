@@ -30,7 +30,7 @@ Dans la console SQL de Supabase, exécutez dans l'ordre:
 #### Migration 1: Ajouter les colonnes de noms
 ```sql
 -- Ajouter firstname et lastname
-ALTER TABLE "Profiles"
+ALTER TABLE profiles
 ADD COLUMN IF NOT EXISTS firstname TEXT,
 ADD COLUMN IF NOT EXISTS lastname TEXT;
 ```
@@ -38,10 +38,10 @@ ADD COLUMN IF NOT EXISTS lastname TEXT;
 #### Migration 2: Ajouter la colonne avatar_url
 ```sql
 -- Ajouter avatar_url et index
-ALTER TABLE "Profiles"
+ALTER TABLE profiles
 ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 
-CREATE INDEX IF NOT EXISTS idx_profiles_avatar_url ON "Profiles"(avatar_url);
+CREATE INDEX IF NOT EXISTS idx_profiles_avatar_url ON profiles(avatar_url);
 ```
 
 ### 2. Créer le bucket Storage "avatars"
@@ -187,3 +187,4 @@ Une fois toutes les étapes complétées, votre application aura:
 - 📱 Une interface moderne et professionnelle
 
 Bon développement ! 🎾
+

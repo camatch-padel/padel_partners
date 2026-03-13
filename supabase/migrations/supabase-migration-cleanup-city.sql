@@ -3,9 +3,9 @@
 -- À exécuter dans la console SQL de Supabase
 
 -- ============================================
--- 1. Supprimer la colonne "city" de la table Profiles
+-- 1. Supprimer la colonne "city" de la table profiles
 -- ============================================
-ALTER TABLE "Profiles" DROP COLUMN IF EXISTS city;
+ALTER TABLE profiles DROP COLUMN IF EXISTS city;
 
 -- ============================================
 -- 2. Supprimer la table "cities" (plus utilisée)
@@ -22,3 +22,4 @@ DROP INDEX IF EXISTS cities_name_location_unique;
 
 -- Supprimer la table
 DROP TABLE IF EXISTS cities;
+

@@ -6,7 +6,6 @@ import { supabase } from '@/constants/supabase';
 import { useFocusEffect } from '@react-navigation/native';
 import { ProfileProvider, useProfile } from '@/contexts/ProfileContext';
 import { NotificationsProvider, useNotifications } from '@/contexts/NotificationsContext';
-import { ThemeProvider } from '@/contexts/ThemeContext';
 import { NotificationPrefsProvider } from '@/contexts/NotificationPrefsContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -150,14 +149,12 @@ function TabLayoutInner() {
 
 export default function TabLayout() {
   return (
-    <ThemeProvider>
-      <NotificationPrefsProvider>
-        <ProfileProvider>
-          <NotificationsProvider>
-            <TabLayoutInner />
-          </NotificationsProvider>
-        </ProfileProvider>
-      </NotificationPrefsProvider>
-    </ThemeProvider>
+    <NotificationPrefsProvider>
+      <ProfileProvider>
+        <NotificationsProvider>
+          <TabLayoutInner />
+        </NotificationsProvider>
+      </ProfileProvider>
+    </NotificationPrefsProvider>
   );
 }

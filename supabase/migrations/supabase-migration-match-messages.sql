@@ -27,13 +27,13 @@ CREATE INDEX IF NOT EXISTS idx_match_messages_user_id
 ON match_messages(user_id);
 
 -- ============================================
--- 3. AJOUTER LA FOREIGN KEY VERS PROFILES
+-- 3. AJOUTER LA FOREIGN KEY VERS profiles
 -- ============================================
 
--- Ajouter la foreign key vers Profiles pour les jointures automatiques
+-- Ajouter la foreign key vers profiles pour les jointures automatiques
 ALTER TABLE match_messages
 ADD CONSTRAINT match_messages_user_id_fkey_profiles
-FOREIGN KEY (user_id) REFERENCES "Profiles"(id) ON DELETE CASCADE;
+FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE;
 
 COMMENT ON TABLE match_messages IS 'Messages dans les chats des parties';
 
@@ -117,3 +117,4 @@ BEGIN
     RAISE NOTICE '✅ Index créés pour les performances';
     RAISE NOTICE '✅ RLS activé avec politiques pour public/privé';
 END $$;
+

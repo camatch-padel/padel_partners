@@ -1,8 +1,8 @@
 -- Migration pour ajouter les avatars aux profils
 -- À exécuter dans la console SQL de Supabase
 
--- 1. Ajouter la colonne avatar_url à la table Profiles
-ALTER TABLE "Profiles"
+-- 1. Ajouter la colonne avatar_url à la table profiles
+ALTER TABLE profiles
 ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 
 -- 2. Créer le bucket storage pour les avatars (à faire via l'interface Supabase)
@@ -16,4 +16,5 @@ ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 -- (À configurer via l'interface Supabase Storage)
 
 -- 4. Index pour améliorer les performances
-CREATE INDEX IF NOT EXISTS idx_profiles_avatar_url ON "Profiles"(avatar_url);
+CREATE INDEX IF NOT EXISTS idx_profiles_avatar_url ON profiles(avatar_url);
+

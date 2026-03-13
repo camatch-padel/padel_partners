@@ -1,6 +1,7 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/constants/supabase';
-import type { MatchWithDetails, MatchRequest, MatchWaitlistEntry, MatchResult, MatchRating, MatchMessage } from '@/types/match';
+import type { MatchWithDetails, MatchRequest, MatchWaitlistEntry, MatchResult, MatchMessage } from '@/types/match';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState, useRef } from 'react';
@@ -20,13 +21,10 @@ import {
   View
 } from 'react-native';
 import Avatar from '@/components/Avatar';
-import LevelPyramid from '@/components/LevelPyramid';
 
-const { width, height } = Dimensions.get('window');
-const COURT_MAX_HEIGHT = Math.round(height * 0.5);
-const COURT_MAX_WIDTH = width - 40;
-const COURT_WIDTH = Math.min(COURT_MAX_WIDTH, Math.round(COURT_MAX_HEIGHT * 0.5));
-const COURT_HEIGHT = Math.round(COURT_WIDTH * 2);
+const { width } = Dimensions.get('window');
+const COURT_WIDTH = width - 40;
+const COURT_HEIGHT = Math.round((width - 40) / 2);
 
 type Tab = 'edit' | 'chat' | 'requests' | 'waitlist' | 'results' | 'rating' | 'delete';
 
@@ -40,6 +38,28 @@ interface TabConfig {
 const getRequiredPlayers = (format: unknown): number => {
   if (format === 4 || format === '4' || format === '2v2') return 4;
   return 2;
+};
+
+// === SYSTÈME DE NIVEAU ESTIMÉ ===
+// Seuil de différence de poids considéré comme "même niveau"
+const WEIGHT_EQUALITY_THRESHOLD = 1.0;
+
+/**
+ * Calcule le delta de niveau estimé :
+ * Gagné vs plus fort (+0.3) | égal (+0.1) | plus faible (0)
+ * Perdu vs plus fort (0)    | égal (-0.1) | plus faible (-0.3)
+ */
+const calculateLevelDelta = (myWeight: number, opponentWeight: number, won: boolean): number => {
+  const diff = opponentWeight - myWeight; // positif = adversaire plus fort
+  if (won) {
+    if (diff > WEIGHT_EQUALITY_THRESHOLD) return 0.3;
+    if (diff >= -WEIGHT_EQUALITY_THRESHOLD) return 0.1;
+    return 0;
+  } else {
+    if (diff > WEIGHT_EQUALITY_THRESHOLD) return 0;
+    if (diff >= -WEIGHT_EQUALITY_THRESHOLD) return -0.1;
+    return -0.3;
+  }
 };
 
 const TABS: TabConfig[] = [
@@ -80,12 +100,6 @@ export default function MyMatchDetailScreen() {
   const [sets, setSets] = useState<[number, number][]>([[0, 0]]);
   const [savingResult, setSavingResult] = useState(false);
 
-  // Onglet Notation
-  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
-  const [ratingValue, setRatingValue] = useState(5.0);
-  const [existingRatings, setExistingRatings] = useState<MatchRating[]>([]);
-  const [savingRating, setSavingRating] = useState(false);
-
   // Onglet Chat
   const [messages, setMessages] = useState<MatchMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -101,6 +115,29 @@ export default function MyMatchDetailScreen() {
   useEffect(() => {
     loadData();
   }, [id]);
+
+  // Charger le brouillon de placement depuis AsyncStorage
+  useEffect(() => {
+    if (!id) return;
+    AsyncStorage.getItem(`@placement_draft_${id}`).then((raw) => {
+      if (!raw) return;
+      try {
+        const draft = JSON.parse(raw);
+        if (draft.teamPlacements) setTeamPlacements(draft.teamPlacements);
+        if (draft.resultStep) setResultStep(draft.resultStep);
+        if (draft.sets) setSets(draft.sets);
+      } catch {}
+    });
+  }, [id]);
+
+  // Sauvegarder le brouillon de placement dans AsyncStorage à chaque changement
+  useEffect(() => {
+    if (!id) return;
+    AsyncStorage.setItem(
+      `@placement_draft_${id}`,
+      JSON.stringify({ teamPlacements, resultStep, sets })
+    );
+  }, [id, teamPlacements, resultStep, sets]);
 
   const loadData = async () => {
     try {
@@ -189,7 +226,6 @@ export default function MyMatchDetailScreen() {
         loadRequests(),
         loadWaitlist(),
         loadResult(),
-        loadRatings(session.user.id),
         loadMessages(),
       ]);
     } catch (error) {
@@ -234,16 +270,22 @@ export default function MyMatchDetailScreen() {
     if (data) {
       setResult(data);
       setSets(data.sets || [[0, 0]]);
+      // Restaurer les placements depuis le résultat enregistré
+      setTeamPlacements({
+        team1: {
+          player1: data.team1_player1_id || null,
+          player1Pos: data.team1_player1_position || null,
+          player2: data.team1_player2_id || null,
+          player2Pos: data.team1_player2_position || null,
+        },
+        team2: {
+          player1: data.team2_player1_id || null,
+          player1Pos: data.team2_player1_position || null,
+          player2: data.team2_player2_id || null,
+          player2Pos: data.team2_player2_position || null,
+        },
+      });
     }
-  };
-
-  const loadRatings = async (userId: string) => {
-    const { data } = await supabase
-      .from('match_ratings')
-      .select('*')
-      .eq('match_id', id)
-      .eq('rater_id', userId);
-    setExistingRatings((data as any) || []);
   };
 
   const loadMessages = async () => {
@@ -498,13 +540,32 @@ export default function MyMatchDetailScreen() {
         winner_team: winner,
       };
 
+      let savedResultId: string;
       if (result) {
         await supabase.from('match_results').update(resultData).eq('id', result.id);
+        savedResultId = result.id;
       } else {
-        await supabase.from('match_results').insert(resultData);
+        const { data: inserted, error: insertError } = await supabase
+          .from('match_results')
+          .insert(resultData)
+          .select('id')
+          .single();
+        if (insertError) throw insertError;
+        savedResultId = inserted.id;
+      }
+
+      // Appliquer les deltas via la fonction SQL SECURITY DEFINER
+      // (bypass RLS pour mettre à jour les profils de tous les joueurs)
+      // La fonction vérifie elle-même level_delta_applied pour éviter la double application
+      if (winner) {
+        const { error: rpcError } = await supabase.rpc('apply_match_level_deltas', {
+          p_match_result_id: savedResultId,
+        });
+        if (rpcError) throw new Error(`Niveau estimé : ${rpcError.message}`);
       }
 
       await loadResult();
+      await AsyncStorage.removeItem(`@placement_draft_${id}`);
       Alert.alert('Succès', 'Résultat enregistré');
     } catch (error: any) {
       Alert.alert('Erreur', error.message || 'Impossible d\'enregistrer');
@@ -513,29 +574,6 @@ export default function MyMatchDetailScreen() {
     }
   };
 
-  const handleSaveRating = async () => {
-    if (!selectedPlayer) return;
-    setSavingRating(true);
-    try {
-      const existing = existingRatings.find(r => r.rated_id === selectedPlayer);
-      if (existing) {
-        await supabase.from('match_ratings').update({ rating: ratingValue }).eq('id', existing.id);
-      } else {
-        await supabase.from('match_ratings').insert({
-          match_id: id,
-          rater_id: currentUserId,
-          rated_id: selectedPlayer,
-          rating: ratingValue,
-        });
-      }
-      await loadRatings(currentUserId);
-      Alert.alert('Succès', 'Note enregistrée');
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Impossible de noter');
-    } finally {
-      setSavingRating(false);
-    }
-  };
 
   // === RENDER HELPERS ===
 
@@ -546,8 +584,8 @@ export default function MyMatchDetailScreen() {
     return `${days[date.getDay()]} ${date.getDate()} ${months[date.getMonth()]}`;
   };
 
-  const renderLevelBadge = (declared: number, community: number | null, votes: number) => {
-    if (!community || votes === 0) {
+  const renderLevelBadge = (declared: number, community: number | null) => {
+    if (community == null) {
       return <Text style={styles.levelText}>{declared.toFixed(1)}</Text>;
     }
     const isLower = community < declared;
@@ -633,7 +671,7 @@ export default function MyMatchDetailScreen() {
               <Avatar imageUrl={p.avatar_url} firstName={p.firstname} lastName={p.lastname} size={48} />
               <View style={styles.participantInfo}>
                 <Text style={styles.participantName}>{p.firstname} {p.lastname}</Text>
-                {renderLevelBadge(p.declared_level, p.community_level, p.community_level_votes)}
+                {renderLevelBadge(p.declared_level, p.community_level)}
               </View>
               {p.user_id === match.creator_id && (
                 <View style={styles.creatorTag}>
@@ -743,7 +781,7 @@ export default function MyMatchDetailScreen() {
               <Text style={styles.requestName}>{req.profile?.firstname} {req.profile?.lastname}</Text>
               <Text style={styles.requestLevel}>
                 {req.profile?.declared_level.toFixed(1)}
-                {req.profile?.community_level_votes > 0 && req.profile?.community_level != null
+                {req.profile?.community_level != null
                   ? ` / ${req.profile.community_level.toFixed(1)}`
                   : ''}
               </Text>
@@ -816,227 +854,141 @@ export default function MyMatchDetailScreen() {
     if (!match) return null;
     const isFormat4 = match.format === 4;
 
-    // Si un résultat existe déjà, afficher le récap
-    if (result && result.winner_team) {
-      const winnerTeam = result.winner_team === 1
-        ? [getPlayerById(result.team1_player1_id), getPlayerById(result.team1_player2_id)]
-        : [getPlayerById(result.team2_player1_id), getPlayerById(result.team2_player2_id)];
+    // Poids des équipes (somme des niveaux déclarés)
+    const team1Weight =
+      (getPlayerById(teamPlacements.team1.player1)?.declared_level || 0) +
+      (isFormat4 ? (getPlayerById(teamPlacements.team1.player2)?.declared_level || 0) : 0);
+    const team2Weight =
+      (getPlayerById(teamPlacements.team2.player1)?.declared_level || 0) +
+      (isFormat4 ? (getPlayerById(teamPlacements.team2.player2)?.declared_level || 0) : 0);
 
-      return (
-        <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-          <Text style={styles.tabTitle}>Résultat</Text>
+    // Calcul gagnant depuis les sets actuels
+    let t1Wins = 0, t2Wins = 0;
+    sets.forEach(([s1, s2]) => { if (s1 > s2) t1Wins++; else if (s2 > s1) t2Wins++; });
+    const winnerTeamNum = t1Wins > t2Wins ? 1 : t2Wins > t1Wins ? 2 : 0;
+    const winnerPlayerIds = winnerTeamNum === 1
+      ? [teamPlacements.team1.player1, teamPlacements.team1.player2]
+      : winnerTeamNum === 2
+      ? [teamPlacements.team2.player1, teamPlacements.team2.player2]
+      : [];
 
-          {/* Gagnants */}
-          <View style={styles.winnerSection}>
-            <Ionicons name="trophy" size={32} color="#D4AF37" />
-            <Text style={styles.winnerTitle}>Gagnants</Text>
-            <View style={styles.winnerAvatars}>
-              {winnerTeam.filter(Boolean).map(p => (
-                <View key={p!.user_id} style={styles.winnerPlayer}>
-                  <Avatar imageUrl={p!.avatar_url} firstName={p!.firstname} lastName={p!.lastname} size={48} />
-                  <Text style={styles.winnerName}>{p!.firstname}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          {/* Scores */}
-          <View style={styles.scoresSection}>
-            {(result.sets as [number, number][]).map((set, i) => (
-              <View key={i} style={styles.scoreRow}>
-                <Text style={styles.setLabel}>Set {i + 1}</Text>
-                <Text style={[styles.scoreValue, set[0] > set[1] && styles.scoreWinner]}>{set[0]}</Text>
-                <Text style={styles.scoreSep}>-</Text>
-                <Text style={[styles.scoreValue, set[1] > set[0] && styles.scoreWinner]}>{set[1]}</Text>
-              </View>
-            ))}
-          </View>
-
-          <Pressable style={styles.editResultButton} onPress={() => { setResultStep('placement'); setResult(null); }}>
-            <Text style={styles.editResultText}>Modifier le résultat</Text>
-          </Pressable>
-        </ScrollView>
-      );
-    }
-
-    // Étape 1 : Placement
-    if (resultStep === 'placement') {
-      return (
-        <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-          <Text style={styles.tabTitle}>Placement des joueurs</Text>
-          <Text style={styles.helpText}>Appuyez sur une zone du terrain pour y placer un joueur</Text>
-
-          {/* Terrain de padel */}
-          <View style={styles.courtContainer}>
-            {/* Bordure extérieure = murs */}
-            <View style={styles.courtInner}>
-              {/* Label Équipe 1 */}
-              <Text style={styles.teamLabel}>Équipe 1</Text>
-
-              {/* Demi-terrain haut (Équipe 1) */}
-              <View style={styles.courtHalf}>
-                {/* Ligne de fond (près du bord haut) */}
-                <View style={styles.courtServiceLineTop} />
-                <View pointerEvents="none" style={styles.courtCenterLineOverlayTop} />
-
-                {/* Zones joueurs */}
-                <View style={styles.courtSide}>
+    // JSX terrain (partagé entre vue unifiée et étape placement)
+    const courtJSX = (
+      <>
+        <View style={styles.courtContainer}>
+          <View style={styles.courtInner}>
+            {/* Demi-terrain gauche (Équipe 1) */}
+            <View style={styles.courtHalf}>
+              <View style={styles.courtServiceLineLeft} />
+              <View pointerEvents="none" style={styles.courtCenterLineOverlayLeft} />
+              <View style={styles.courtSide}>
+                <Pressable
+                  style={[styles.courtZone, teamPlacements.team1.player1 && styles.courtZoneFilled, selectingZone === 't1_left' && styles.courtZoneSelecting]}
+                  onPress={() => handlePlacePlayer('t1_left')}
+                >
+                  {teamPlacements.team1.player1 ? (
+                    <View style={styles.courtPlayer}>
+                      <Avatar imageUrl={getPlayerById(teamPlacements.team1.player1)?.avatar_url || null} firstName={getPlayerById(teamPlacements.team1.player1)?.firstname || ''} lastName={getPlayerById(teamPlacements.team1.player1)?.lastname || ''} size={36} />
+                      <Text style={styles.courtPlayerName}>{getPlayerById(teamPlacements.team1.player1)?.firstname}</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.courtPlaceholder}>{isFormat4 ? 'G' : '?'}</Text>
+                  )}
+                </Pressable>
+                {isFormat4 && (
                   <Pressable
-                    style={[styles.courtZone, teamPlacements.team1.player1 && styles.courtZoneFilled, selectingZone === 't1_left' && styles.courtZoneSelecting]}
-                    onPress={() => handlePlacePlayer('t1_left')}
+                    style={[styles.courtZone, teamPlacements.team1.player2 && styles.courtZoneFilled, selectingZone === 't1_right' && styles.courtZoneSelecting]}
+                    onPress={() => handlePlacePlayer('t1_right')}
                   >
-                    {teamPlacements.team1.player1 ? (
+                    {teamPlacements.team1.player2 ? (
                       <View style={styles.courtPlayer}>
-                        <Avatar imageUrl={getPlayerById(teamPlacements.team1.player1)?.avatar_url || null} firstName={getPlayerById(teamPlacements.team1.player1)?.firstname || ''} lastName={getPlayerById(teamPlacements.team1.player1)?.lastname || ''} size={40} />
-                        <Text style={styles.courtPlayerName}>{getPlayerById(teamPlacements.team1.player1)?.firstname}</Text>
+                        <Avatar imageUrl={getPlayerById(teamPlacements.team1.player2)?.avatar_url || null} firstName={getPlayerById(teamPlacements.team1.player2)?.firstname || ''} lastName={getPlayerById(teamPlacements.team1.player2)?.lastname || ''} size={36} />
+                        <Text style={styles.courtPlayerName}>{getPlayerById(teamPlacements.team1.player2)?.firstname}</Text>
                       </View>
                     ) : (
-                      <Text style={styles.courtPlaceholder}>{isFormat4 ? 'G' : '?'}</Text>
+                      <Text style={styles.courtPlaceholder}>D</Text>
                     )}
                   </Pressable>
-                  {isFormat4 && (
-                    <>
-                      <Pressable
-                        style={[styles.courtZone, teamPlacements.team1.player2 && styles.courtZoneFilled, selectingZone === 't1_right' && styles.courtZoneSelecting]}
-                        onPress={() => handlePlacePlayer('t1_right')}
-                      >
-                        {teamPlacements.team1.player2 ? (
-                          <View style={styles.courtPlayer}>
-                            <Avatar imageUrl={getPlayerById(teamPlacements.team1.player2)?.avatar_url || null} firstName={getPlayerById(teamPlacements.team1.player2)?.firstname || ''} lastName={getPlayerById(teamPlacements.team1.player2)?.lastname || ''} size={40} />
-                            <Text style={styles.courtPlayerName}>{getPlayerById(teamPlacements.team1.player2)?.firstname}</Text>
-                          </View>
-                        ) : (
-                          <Text style={styles.courtPlaceholder}>D</Text>
-                        )}
-                      </Pressable>
-                    </>
-                  )}
-                </View>
+                )}
               </View>
+            </View>
 
-              {/* Filet */}
-              <View style={styles.courtNet} />
+            {/* Filet vertical */}
+            <View style={styles.courtNet} />
 
-              {/* Demi-terrain bas (Équipe 2) */}
-              <View style={styles.courtHalf}>
-                <View pointerEvents="none" style={styles.courtCenterLineOverlayBottom} />
-                {/* Zones joueurs */}
-                <View style={styles.courtSide}>
+            {/* Demi-terrain droit (Équipe 2) */}
+            <View style={styles.courtHalf}>
+              <View pointerEvents="none" style={styles.courtCenterLineOverlayRight} />
+              <View style={styles.courtSide}>
+                {isFormat4 && (
                   <Pressable
-                    style={[styles.courtZone, teamPlacements.team2.player1 && styles.courtZoneFilled, selectingZone === 't2_left' && styles.courtZoneSelecting]}
-                    onPress={() => handlePlacePlayer('t2_left')}
+                    style={[styles.courtZone, teamPlacements.team2.player2 && styles.courtZoneFilled, selectingZone === 't2_right' && styles.courtZoneSelecting]}
+                    onPress={() => handlePlacePlayer('t2_right')}
                   >
-                    {teamPlacements.team2.player1 ? (
+                    {teamPlacements.team2.player2 ? (
                       <View style={styles.courtPlayer}>
-                        <Avatar imageUrl={getPlayerById(teamPlacements.team2.player1)?.avatar_url || null} firstName={getPlayerById(teamPlacements.team2.player1)?.firstname || ''} lastName={getPlayerById(teamPlacements.team2.player1)?.lastname || ''} size={40} />
-                        <Text style={styles.courtPlayerName}>{getPlayerById(teamPlacements.team2.player1)?.firstname}</Text>
+                        <Avatar imageUrl={getPlayerById(teamPlacements.team2.player2)?.avatar_url || null} firstName={getPlayerById(teamPlacements.team2.player2)?.firstname || ''} lastName={getPlayerById(teamPlacements.team2.player2)?.lastname || ''} size={36} />
+                        <Text style={styles.courtPlayerName}>{getPlayerById(teamPlacements.team2.player2)?.firstname}</Text>
                       </View>
                     ) : (
-                      <Text style={styles.courtPlaceholder}>{isFormat4 ? 'G' : '?'}</Text>
+                      <Text style={styles.courtPlaceholder}>D</Text>
                     )}
                   </Pressable>
-                  {isFormat4 && (
-                    <>
-                      <Pressable
-                        style={[styles.courtZone, teamPlacements.team2.player2 && styles.courtZoneFilled, selectingZone === 't2_right' && styles.courtZoneSelecting]}
-                        onPress={() => handlePlacePlayer('t2_right')}
-                      >
-                        {teamPlacements.team2.player2 ? (
-                          <View style={styles.courtPlayer}>
-                            <Avatar imageUrl={getPlayerById(teamPlacements.team2.player2)?.avatar_url || null} firstName={getPlayerById(teamPlacements.team2.player2)?.firstname || ''} lastName={getPlayerById(teamPlacements.team2.player2)?.lastname || ''} size={40} />
-                            <Text style={styles.courtPlayerName}>{getPlayerById(teamPlacements.team2.player2)?.firstname}</Text>
-                          </View>
-                        ) : (
-                          <Text style={styles.courtPlaceholder}>D</Text>
-                        )}
-                      </Pressable>
-                    </>
+                )}
+                <Pressable
+                  style={[styles.courtZone, teamPlacements.team2.player1 && styles.courtZoneFilled, selectingZone === 't2_left' && styles.courtZoneSelecting]}
+                  onPress={() => handlePlacePlayer('t2_left')}
+                >
+                  {teamPlacements.team2.player1 ? (
+                    <View style={styles.courtPlayer}>
+                      <Avatar imageUrl={getPlayerById(teamPlacements.team2.player1)?.avatar_url || null} firstName={getPlayerById(teamPlacements.team2.player1)?.firstname || ''} lastName={getPlayerById(teamPlacements.team2.player1)?.lastname || ''} size={36} />
+                      <Text style={styles.courtPlayerName}>{getPlayerById(teamPlacements.team2.player1)?.firstname}</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.courtPlaceholder}>{isFormat4 ? 'G' : '?'}</Text>
                   )}
-                </View>
-
-                {/* Ligne de fond (près du bord bas) */}
-                <View style={styles.courtServiceLineBottom} />
+                </Pressable>
               </View>
-
-              {/* Label Équipe 2 */}
-              <Text style={styles.teamLabel}>Équipe 2</Text>
-            </View>
-          </View>
-
-          {/* Sélection inline du joueur (compatible web) */}
-          {selectingZone && (
-            <View style={styles.playerSelectionContainer}>
-              <Text style={styles.playerSelectionTitle}>Choisir un joueur</Text>
-              <View style={styles.playerSelectionRow}>
-                {getAvailablePlayers().map(p => (
-                  <Pressable key={p.user_id} style={styles.playerSelectionCard} onPress={() => handleSelectPlayerForZone(p.user_id)}>
-                    <Avatar imageUrl={p.avatar_url} firstName={p.firstname} lastName={p.lastname} size={48} />
-                    <Text style={styles.playerSelectionName}>{p.firstname}</Text>
-                  </Pressable>
-                ))}
-              </View>
-              <Pressable style={styles.playerSelectionCancel} onPress={() => setSelectingZone(null)}>
-                <Text style={styles.playerSelectionCancelText}>Annuler</Text>
-              </Pressable>
-            </View>
-          )}
-
-          {/* Joueurs non placés */}
-          {!selectingZone && getAvailablePlayers().length > 0 && (
-            <View style={styles.availablePlayers}>
-              <Text style={styles.availableTitle}>Joueurs à placer</Text>
-              <View style={styles.availableRow}>
-                {getAvailablePlayers().map(p => (
-                  <View key={p.user_id} style={styles.availablePlayer}>
-                    <Avatar imageUrl={p.avatar_url} firstName={p.firstname} lastName={p.lastname} size={40} />
-                    <Text style={styles.availablePlayerName}>{p.firstname}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* Bouton passer aux scores */}
-          <Pressable
-            style={[styles.primaryButton, getAvailablePlayers().length > 0 && styles.buttonDisabled]}
-            onPress={() => setResultStep('score')}
-            disabled={getAvailablePlayers().length > 0}
-          >
-            <Text style={styles.primaryButtonText}>Passer aux scores</Text>
-          </Pressable>
-        </ScrollView>
-      );
-    }
-
-    // Étape 2 : Scores
-    return (
-      <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.tabTitle}>Score</Text>
-
-        {/* Miniatures des équipes */}
-        <View style={styles.teamsSummary}>
-          <View style={styles.teamSummaryCol}>
-            <Text style={styles.teamSummaryLabel}>Équipe 1</Text>
-            <View style={styles.teamSummaryAvatars}>
-              {[teamPlacements.team1.player1, teamPlacements.team1.player2].filter(Boolean).map(pid => {
-                const p = getPlayerById(pid!);
-                return p ? <Avatar key={p.user_id} imageUrl={p.avatar_url} firstName={p.firstname} lastName={p.lastname} size={32} /> : null;
-              })}
-            </View>
-          </View>
-          <Text style={styles.vsText}>VS</Text>
-          <View style={styles.teamSummaryCol}>
-            <Text style={styles.teamSummaryLabel}>Équipe 2</Text>
-            <View style={styles.teamSummaryAvatars}>
-              {[teamPlacements.team2.player1, teamPlacements.team2.player2].filter(Boolean).map(pid => {
-                const p = getPlayerById(pid!);
-                return p ? <Avatar key={p.user_id} imageUrl={p.avatar_url} firstName={p.firstname} lastName={p.lastname} size={32} /> : null;
-              })}
+              <View style={styles.courtServiceLineRight} />
             </View>
           </View>
         </View>
 
-        {/* Sets */}
+        {/* Labels équipes + poids */}
+        <View style={styles.courtTeamLabels}>
+          <View style={styles.teamLabelCol}>
+            <Text style={styles.teamLabel}>Équipe 1</Text>
+            {team1Weight > 0 && <Text style={styles.teamWeight}>Poids : {team1Weight.toFixed(1)}</Text>}
+          </View>
+          <View style={styles.teamLabelCol}>
+            <Text style={styles.teamLabel}>Équipe 2</Text>
+            {team2Weight > 0 && <Text style={styles.teamWeight}>Poids : {team2Weight.toFixed(1)}</Text>}
+          </View>
+        </View>
+      </>
+    );
+
+    // JSX sélection de joueur (compatible web)
+    const playerSelectionJSX = selectingZone ? (
+      <View style={styles.playerSelectionContainer}>
+        <Text style={styles.playerSelectionTitle}>Choisir un joueur</Text>
+        <View style={styles.playerSelectionRow}>
+          {getAvailablePlayers().map(p => (
+            <Pressable key={p.user_id} style={styles.playerSelectionCard} onPress={() => handleSelectPlayerForZone(p.user_id)}>
+              <Avatar imageUrl={p.avatar_url} firstName={p.firstname} lastName={p.lastname} size={48} />
+              <Text style={styles.playerSelectionName}>{p.firstname}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Pressable style={styles.playerSelectionCancel} onPress={() => setSelectingZone(null)}>
+          <Text style={styles.playerSelectionCancelText}>Annuler</Text>
+        </Pressable>
+      </View>
+    ) : null;
+
+    // JSX scores (inputs)
+    const scoreJSX = (
+      <>
         {sets.map((set, index) => (
           <View key={index} style={styles.setRow}>
             <Text style={styles.setRowLabel}>Set {index + 1}</Text>
@@ -1078,37 +1030,137 @@ export default function MyMatchDetailScreen() {
             </View>
           </View>
         ))}
-
         {sets.length < 5 && (
           <Pressable style={styles.addSetButton} onPress={() => setSets([...sets, [0, 0]])}>
             <Ionicons name="add-circle" size={24} color="#D4AF37" />
             <Text style={styles.addSetText}>Ajouter un set</Text>
           </Pressable>
         )}
+      </>
+    );
 
-        {/* Gagnant */}
-        {(() => {
-          let t1 = 0, t2 = 0;
-          sets.forEach(([s1, s2]) => { if (s1 > s2) t1++; else if (s2 > s1) t2++; });
-          if (t1 > 0 || t2 > 0) {
-            const winner = t1 > t2 ? 1 : t2 > t1 ? 2 : 0;
-            if (winner > 0) {
-              const winPlayers = winner === 1
-                ? [getPlayerById(teamPlacements.team1.player1!), getPlayerById(teamPlacements.team1.player2!)]
-                : [getPlayerById(teamPlacements.team2.player1!), getPlayerById(teamPlacements.team2.player2!)];
-              return (
-                <View style={styles.winnerBanner}>
-                  <Ionicons name="trophy" size={24} color="#D4AF37" />
-                  <Text style={styles.winnerBannerText}>Équipe {winner} gagne !</Text>
-                  {winPlayers.filter(Boolean).map(p => (
-                    <Avatar key={p!.user_id} imageUrl={p!.avatar_url} firstName={p!.firstname} lastName={p!.lastname} size={32} />
-                  ))}
-                </View>
-              );
-            }
-          }
-          return null;
-        })()}
+    // === VUE UNIFIÉE (résultat déjà enregistré) ===
+    if (result) {
+      return (
+        <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+          <Text style={styles.tabTitle}>Résultat</Text>
+
+          {/* 1. Équipe gagnante */}
+          {winnerTeamNum > 0 && (
+            <View style={styles.winnerSection}>
+              <Ionicons name="trophy" size={32} color="#D4AF37" />
+              <Text style={styles.winnerTitle}>Gagnants</Text>
+              <View style={styles.winnerAvatars}>
+                {winnerPlayerIds.filter(Boolean).map(pid => {
+                  const p = getPlayerById(pid!);
+                  return p ? (
+                    <View key={p.user_id} style={styles.winnerPlayer}>
+                      <Avatar imageUrl={p.avatar_url} firstName={p.firstname} lastName={p.lastname} size={48} />
+                      <Text style={styles.winnerName}>{p.firstname}</Text>
+                    </View>
+                  ) : null;
+                })}
+              </View>
+            </View>
+          )}
+
+          {/* 2. Terrain + poids */}
+          {courtJSX}
+          {playerSelectionJSX}
+
+          {/* 3. Score */}
+          <Text style={styles.resultSectionTitle}>Score</Text>
+          {scoreJSX}
+
+          {/* Enregistrer */}
+          <Pressable
+            style={[styles.primaryButton, { marginTop: 16, marginBottom: 32 }, savingResult && styles.buttonDisabled]}
+            onPress={handleSaveResult}
+            disabled={savingResult}
+          >
+            {savingResult ? <ActivityIndicator size="small" color="#000" /> : <Text style={styles.primaryButtonText}>Enregistrer</Text>}
+          </Pressable>
+        </ScrollView>
+      );
+    }
+
+    // === ÉTAPE 1 : PLACEMENT (pas encore de résultat) ===
+    if (resultStep === 'placement') {
+      return (
+        <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+          <Text style={styles.tabTitle}>Placement des joueurs</Text>
+          <Text style={styles.helpText}>Appuyez sur une zone du terrain pour y placer un joueur</Text>
+
+          {courtJSX}
+          {playerSelectionJSX}
+
+          {/* Joueurs non placés */}
+          {!selectingZone && getAvailablePlayers().length > 0 && (
+            <View style={styles.availablePlayers}>
+              <Text style={styles.availableTitle}>Joueurs à placer</Text>
+              <View style={styles.availableRow}>
+                {getAvailablePlayers().map(p => (
+                  <View key={p.user_id} style={styles.availablePlayer}>
+                    <Avatar imageUrl={p.avatar_url} firstName={p.firstname} lastName={p.lastname} size={40} />
+                    <Text style={styles.availablePlayerName}>{p.firstname}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          <Pressable
+            style={[styles.primaryButton, getAvailablePlayers().length > 0 && styles.buttonDisabled]}
+            onPress={() => setResultStep('score')}
+            disabled={getAvailablePlayers().length > 0}
+          >
+            <Text style={styles.primaryButtonText}>Passer aux scores</Text>
+          </Pressable>
+        </ScrollView>
+      );
+    }
+
+    // === ÉTAPE 2 : SCORE (pas encore de résultat) ===
+    return (
+      <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+        <Text style={styles.tabTitle}>Score</Text>
+
+        {/* Miniatures équipes */}
+        <View style={styles.teamsSummary}>
+          <View style={styles.teamSummaryCol}>
+            <Text style={styles.teamSummaryLabel}>Équipe 1</Text>
+            <View style={styles.teamSummaryAvatars}>
+              {[teamPlacements.team1.player1, teamPlacements.team1.player2].filter(Boolean).map(pid => {
+                const p = getPlayerById(pid!);
+                return p ? <Avatar key={p.user_id} imageUrl={p.avatar_url} firstName={p.firstname} lastName={p.lastname} size={32} /> : null;
+              })}
+            </View>
+          </View>
+          <Text style={styles.vsText}>VS</Text>
+          <View style={styles.teamSummaryCol}>
+            <Text style={styles.teamSummaryLabel}>Équipe 2</Text>
+            <View style={styles.teamSummaryAvatars}>
+              {[teamPlacements.team2.player1, teamPlacements.team2.player2].filter(Boolean).map(pid => {
+                const p = getPlayerById(pid!);
+                return p ? <Avatar key={p.user_id} imageUrl={p.avatar_url} firstName={p.firstname} lastName={p.lastname} size={32} /> : null;
+              })}
+            </View>
+          </View>
+        </View>
+
+        {scoreJSX}
+
+        {/* Aperçu gagnant */}
+        {winnerTeamNum > 0 && (
+          <View style={styles.winnerBanner}>
+            <Ionicons name="trophy" size={24} color="#D4AF37" />
+            <Text style={styles.winnerBannerText}>Équipe {winnerTeamNum} gagne !</Text>
+            {winnerPlayerIds.filter(Boolean).map(pid => {
+              const p = getPlayerById(pid!);
+              return p ? <Avatar key={p.user_id} imageUrl={p.avatar_url} firstName={p.firstname} lastName={p.lastname} size={32} /> : null;
+            })}
+          </View>
+        )}
 
         <View style={styles.resultButtons}>
           <Pressable style={styles.secondaryButton} onPress={() => setResultStep('placement')}>
@@ -1126,57 +1178,147 @@ export default function MyMatchDetailScreen() {
     );
   };
 
-  // === ONGLET 5 : NOTATION ===
+  // === ONGLET 5 : NIVEAU ESTIMÉ ===
   const renderRatingTab = () => {
     if (!match) return null;
-    const otherPlayers = match.participants.filter(p => p.user_id !== currentUserId);
+
+    // Pas encore de résultat enregistré
+    if (!result) {
+      return (
+        <View style={[styles.tabContent, styles.centered]}>
+          <Ionicons name="hourglass-outline" size={56} color="#D4AF37" />
+          <Text style={styles.ratingNoResultTitle}>Résultat en attente</Text>
+          <Text style={styles.ratingNoResultText}>
+            Le résultat de cette partie n'a pas encore été enregistré.{'\n'}
+            Rendez-vous dans l'onglet Résultat pour le saisir.
+          </Text>
+        </View>
+      );
+    }
+
+    // Vérifier que l'utilisateur est participant
+    const isInTeam1 = [result.team1_player1_id, result.team1_player2_id].includes(currentUserId);
+    const isInTeam2 = [result.team2_player1_id, result.team2_player2_id].includes(currentUserId);
+    if (!isInTeam1 && !isInTeam2) {
+      return (
+        <View style={[styles.tabContent, styles.centered]}>
+          <Text style={styles.ratingNoResultText}>Vous ne participez pas à cette partie.</Text>
+        </View>
+      );
+    }
+
+    const myTeam = isInTeam1 ? 1 : 2;
+
+    // Calcul des poids de paires
+    const t1p1 = getPlayerById(result.team1_player1_id);
+    const t1p2 = getPlayerById(result.team1_player2_id);
+    const t2p1 = getPlayerById(result.team2_player1_id);
+    const t2p2 = getPlayerById(result.team2_player2_id);
+    const team1Weight = (t1p1?.declared_level || 0) + (t1p2?.declared_level || 0);
+    const team2Weight = (t2p1?.declared_level || 0) + (t2p2?.declared_level || 0);
+    const myWeight = myTeam === 1 ? team1Weight : team2Weight;
+    const opponentWeight = myTeam === 1 ? team2Weight : team1Weight;
+
+    const iWon = result.winner_team === myTeam;
+    const delta = calculateLevelDelta(myWeight, opponentWeight, iWon);
+
+    // Libellé de la force adverse
+    const diff = opponentWeight - myWeight;
+    const opponentStrengthLabel =
+      diff > WEIGHT_EQUALITY_THRESHOLD ? 'plus forte' :
+      diff < -WEIGHT_EQUALITY_THRESHOLD ? 'plus faible' : 'de même niveau';
+
+    // Construction du message
+    let headline = '';
+    let detail = '';
+    const deltaColor = delta > 0 ? '#44DD44' : delta < 0 ? '#FF4444' : '#AAAAAA';
+    const iconName = iWon ? 'trophy' : 'close-circle-outline';
+    const iconColor = iWon ? '#D4AF37' : '#FF4444';
+
+    if (iWon) {
+      if (delta > 0) {
+        headline = `Bravo ! +${delta} point${delta > 1 ? 's' : ''} sur ton niveau estimé`;
+        detail = `Tu as battu une paire ${opponentStrengthLabel} que la tienne (poids ${opponentWeight.toFixed(1)} vs ${myWeight.toFixed(1)}). Bien joué !`;
+      } else {
+        headline = 'Victoire sans bonus';
+        detail = `Tu as gagné, mais contre une paire ${opponentStrengthLabel} (poids ${opponentWeight.toFixed(1)} vs ${myWeight.toFixed(1)}). Aucun point gagné sur ton niveau estimé.`;
+      }
+    } else {
+      if (delta < 0) {
+        headline = `${delta} point${Math.abs(delta) > 1 ? 's' : ''} sur ton niveau estimé`;
+        detail = `Tu as perdu contre une paire ${opponentStrengthLabel} (poids ${opponentWeight.toFixed(1)} vs ${myWeight.toFixed(1)}).`;
+      } else {
+        headline = 'Défaite sans pénalité';
+        detail = `Tu as perdu, mais contre une paire ${opponentStrengthLabel} (poids ${opponentWeight.toFixed(1)} vs ${myWeight.toFixed(1)}). Ton niveau estimé reste inchangé.`;
+      }
+    }
+
+    // Joueurs de ma paire et de l'équipe adverse
+    const myPlayers = myTeam === 1
+      ? [t1p1, t1p2].filter(Boolean)
+      : [t2p1, t2p2].filter(Boolean);
+    const opponentPlayers = myTeam === 1
+      ? [t2p1, t2p2].filter(Boolean)
+      : [t1p1, t1p2].filter(Boolean);
 
     return (
       <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.tabTitle}>Notation</Text>
-        <Text style={styles.helpText}>Sélectionnez un joueur puis attribuez une note</Text>
+        <Text style={styles.tabTitle}>Niveau estimé</Text>
 
-        {/* Avatars des autres joueurs */}
-        <View style={styles.ratingPlayersRow}>
-          {otherPlayers.map(p => {
-            const isSelected = selectedPlayer === p.user_id;
-            const alreadyRated = existingRatings.find(r => r.rated_id === p.user_id);
-            return (
-              <Pressable
-                key={p.user_id}
-                style={[styles.ratingPlayerCard, isSelected && styles.ratingPlayerSelected]}
-                onPress={() => {
-                  setSelectedPlayer(p.user_id);
-                  setRatingValue(alreadyRated ? alreadyRated.rating : 5.0);
-                }}
-              >
-                <Avatar imageUrl={p.avatar_url} firstName={p.firstname} lastName={p.lastname} size={56} />
-                <Text style={styles.ratingPlayerName}>{p.firstname}</Text>
-                <Text style={styles.ratingPlayerLevel}>Niv. {p.declared_level.toFixed(1)}</Text>
-                {alreadyRated && (
-                  <View style={styles.ratedBadge}>
-                    <Ionicons name="checkmark-circle" size={16} color="#44DD44" />
-                    <Text style={styles.ratedText}>{alreadyRated.rating.toFixed(1)}</Text>
-                  </View>
-                )}
-              </Pressable>
-            );
-          })}
+        {/* Carte résultat principal */}
+        <View style={styles.ratingResultCard}>
+          <Ionicons name={iconName as any} size={52} color={iconColor} />
+          <Text style={[styles.ratingDelta, { color: deltaColor }]}>
+            {delta > 0 ? `+${delta}` : delta === 0 ? '±0' : `${delta}`}
+          </Text>
+          <Text style={styles.ratingDeltaLabel}>point{Math.abs(delta) > 1 ? 's' : ''} sur ton niveau estimé</Text>
+          <Text style={styles.ratingHeadline}>{headline}</Text>
+          <Text style={styles.ratingDetail}>{detail}</Text>
         </View>
 
-        {/* Pyramide de notation */}
-        {selectedPlayer && (
-          <View style={styles.ratingSliderSection}>
-            <LevelPyramid value={ratingValue} onChange={setRatingValue} />
-            <Pressable
-              style={[styles.primaryButton, savingRating && styles.buttonDisabled]}
-              onPress={handleSaveRating}
-              disabled={savingRating}
-            >
-              {savingRating ? <ActivityIndicator size="small" color="#000" /> : <Text style={styles.primaryButtonText}>Valider la note</Text>}
-            </Pressable>
+        {/* Comparaison des paires */}
+        <View style={styles.ratingWeightComparison}>
+          <View style={styles.ratingWeightCol}>
+            <Text style={styles.ratingWeightLabel}>Ta paire</Text>
+            <View style={styles.ratingWeightAvatars}>
+              {myPlayers.map(p => (
+                <Avatar key={p!.user_id} imageUrl={p!.avatar_url} firstName={p!.firstname} lastName={p!.lastname} size={36} />
+              ))}
+            </View>
+            <Text style={styles.ratingWeightValue}>{myWeight.toFixed(1)}</Text>
           </View>
-        )}
+          <View style={styles.ratingWeightVsCol}>
+            <Text style={styles.ratingWeightVs}>VS</Text>
+          </View>
+          <View style={styles.ratingWeightCol}>
+            <Text style={styles.ratingWeightLabel}>Adversaires</Text>
+            <View style={styles.ratingWeightAvatars}>
+              {opponentPlayers.map(p => (
+                <Avatar key={p!.user_id} imageUrl={p!.avatar_url} firstName={p!.firstname} lastName={p!.lastname} size={36} />
+              ))}
+            </View>
+            <Text style={styles.ratingWeightValue}>{opponentWeight.toFixed(1)}</Text>
+          </View>
+        </View>
+
+        {/* Règles du système */}
+        <View style={styles.ratingRulesCard}>
+          <Text style={styles.ratingRulesTitle}>Règles du niveau estimé</Text>
+          {[
+            { label: 'Gagné vs paire plus forte', value: '+0.3', color: '#44DD44' },
+            { label: 'Gagné vs paire de même niveau', value: '+0.1', color: '#44DD44' },
+            { label: 'Gagné vs paire plus faible', value: '±0', color: '#AAAAAA' },
+            { label: 'Perdu vs paire plus forte', value: '±0', color: '#AAAAAA' },
+            { label: 'Perdu vs paire de même niveau', value: '-0.1', color: '#FF8844' },
+            { label: 'Perdu vs paire plus faible', value: '-0.3', color: '#FF4444' },
+          ].map((rule, i) => (
+            <View key={i} style={styles.ratingRuleRow}>
+              <Text style={styles.ratingRuleLabel}>{rule.label}</Text>
+              <Text style={[styles.ratingRuleValue, { color: rule.color }]}>{rule.value}</Text>
+            </View>
+          ))}
+          <Text style={styles.ratingRulesNote}>Niveau max : 10 · Même poids = différence ≤ {WEIGHT_EQUALITY_THRESHOLD}</Text>
+        </View>
       </ScrollView>
     );
   };
@@ -1370,64 +1512,67 @@ const styles = StyleSheet.create({
   waitlistName: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
   waitlistLevel: { fontSize: 14, color: '#AAAAAA', marginTop: 2 },
 
-  // Court
+  // Court (layout horizontal)
   courtContainer: {
     width: COURT_WIDTH,
     height: COURT_HEIGHT,
-    maxHeight: COURT_MAX_HEIGHT,
     alignSelf: 'center',
     backgroundColor: '#2A2A2A',
     borderWidth: 3,
     borderColor: '#FFFFFF',
     borderRadius: 4,
-    marginBottom: 20,
+    marginBottom: 6,
     overflow: 'hidden',
   },
   courtInner: {
-    flex: 1, justifyContent: 'center',
+    flex: 1, flexDirection: 'row',
   },
   courtHalf: {
     flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: 6,
+    paddingVertical: 6,
     position: 'relative',
   },
   teamLabel: { fontSize: 13, fontWeight: '700', color: '#AAAAAA', textAlign: 'center', paddingVertical: 4 },
-  courtServiceLineTop: {
-    position: 'absolute',
-    left: 8,
-    right: 8,
-    top: '30%',
-    height: 1.2,
-    backgroundColor: '#FFFFFF',
+  teamLabelCol: { alignItems: 'center' },
+  teamWeight: { fontSize: 12, color: '#D4AF37', fontWeight: '600', textAlign: 'center' },
+  courtTeamLabels: {
+    flexDirection: 'row',
+    width: COURT_WIDTH,
+    alignSelf: 'center',
+    justifyContent: 'space-around',
+    marginBottom: 20,
   },
-  courtServiceLineBottom: {
+  resultSectionTitle: { fontSize: 16, fontWeight: '700', color: '#D4AF37', marginBottom: 12, marginTop: 4 },
+  courtServiceLineLeft: {
     position: 'absolute',
-    left: 8,
-    right: 8,
-    bottom: '30%',
-    height: 1.2,
-    backgroundColor: '#FFFFFF',
-  },
-  courtCenterLineOverlayTop: {
-    position: 'absolute',
-    top: '30%',
-    bottom: 0,
-    left: '50%',
+    top: 8, bottom: 8,
+    left: '30%',
     width: 1.2,
-    marginLeft: -0.6,
     backgroundColor: '#FFFFFF',
   },
-  courtCenterLineOverlayBottom: {
+  courtServiceLineRight: {
     position: 'absolute',
-    top: 0,
-    bottom: '30%',
-    left: '50%',
+    top: 8, bottom: 8,
+    right: '30%',
     width: 1.2,
-    marginLeft: -0.6,
     backgroundColor: '#FFFFFF',
   },
-  courtSide: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'stretch' },
+  courtCenterLineOverlayLeft: {
+    position: 'absolute',
+    left: '30%', right: 0,
+    top: '50%',
+    height: 1.2, marginTop: -0.6,
+    backgroundColor: '#FFFFFF',
+  },
+  courtCenterLineOverlayRight: {
+    position: 'absolute',
+    left: 0, right: '30%',
+    top: '50%',
+    height: 1.2, marginTop: -0.6,
+    backgroundColor: '#FFFFFF',
+  },
+  courtSide: { flex: 1, flexDirection: 'column', justifyContent: 'center', alignItems: 'stretch' },
   courtZone: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
     backgroundColor: 'transparent',
@@ -1435,10 +1580,10 @@ const styles = StyleSheet.create({
   courtZoneFilled: { backgroundColor: 'rgba(212, 175, 55,0.12)' },
   courtZoneSelecting: { backgroundColor: 'rgba(212, 175, 55,0.25)', borderWidth: 0.8, borderColor: '#D4AF37', borderStyle: 'dashed' },
   courtPlayer: { alignItems: 'center', gap: 4 },
-  courtPlayerName: { fontSize: 12, color: '#FFFFFF', fontWeight: '600' },
+  courtPlayerName: { fontSize: 11, color: '#FFFFFF', fontWeight: '600' },
   courtPlaceholder: { fontSize: 24, color: 'rgba(255,255,255,0.3)', fontWeight: '700' },
   courtNet: {
-    height: 4, backgroundColor: '#D4AF37',
+    width: 4, backgroundColor: '#D4AF37',
   },
 
   // Player selection (inline, web-compatible)
@@ -1528,21 +1673,40 @@ const styles = StyleSheet.create({
   },
   editResultText: { fontSize: 16, color: '#D4AF37', fontWeight: '600' },
 
-  // Rating
-  ratingPlayersRow: {
-    flexDirection: 'row', justifyContent: 'center', gap: 16, marginBottom: 24,
-  },
-  ratingPlayerCard: {
-    alignItems: 'center', backgroundColor: '#1A1A1A', borderWidth: 0.8,
-    borderColor: '#333', borderRadius: 12, padding: 12, width: (width - 80) / 3,
-  },
-  ratingPlayerSelected: { borderColor: '#D4AF37', backgroundColor: '#1A1A1A' },
-  ratingPlayerName: { fontSize: 14, fontWeight: '600', color: '#FFFFFF', marginTop: 8 },
-  ratingPlayerLevel: { fontSize: 12, color: '#AAAAAA', marginTop: 2 },
-  ratedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-  ratedText: { fontSize: 12, color: '#44DD44', fontWeight: '600' },
+  // Niveau estimé (onglet étoile)
+  ratingNoResultTitle: { fontSize: 18, fontWeight: '700', color: '#D4AF37', marginTop: 16, marginBottom: 8 },
+  ratingNoResultText: { fontSize: 14, color: '#AAAAAA', textAlign: 'center', lineHeight: 22 },
 
-  ratingSliderSection: { marginTop: 8 },
+  ratingResultCard: {
+    alignItems: 'center', backgroundColor: '#1A1A1A', borderWidth: 0.8,
+    borderColor: '#D4AF37', borderRadius: 16, padding: 24, marginBottom: 20, gap: 6,
+  },
+  ratingDelta: { fontSize: 48, fontWeight: '900', lineHeight: 56 },
+  ratingDeltaLabel: { fontSize: 13, color: '#AAAAAA' },
+  ratingHeadline: { fontSize: 16, fontWeight: '700', color: '#FFFFFF', textAlign: 'center', marginTop: 4 },
+  ratingDetail: { fontSize: 13, color: '#AAAAAA', textAlign: 'center', lineHeight: 20, marginTop: 4 },
+
+  ratingWeightComparison: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#1A1A1A', borderWidth: 0.8, borderColor: '#333',
+    borderRadius: 16, padding: 16, marginBottom: 20,
+  },
+  ratingWeightCol: { flex: 1, alignItems: 'center', gap: 8 },
+  ratingWeightVsCol: { paddingHorizontal: 12 },
+  ratingWeightLabel: { fontSize: 12, color: '#AAAAAA', fontWeight: '600' },
+  ratingWeightAvatars: { flexDirection: 'row', gap: 4 },
+  ratingWeightValue: { fontSize: 22, fontWeight: '800', color: '#D4AF37' },
+  ratingWeightVs: { fontSize: 18, fontWeight: '700', color: '#D4AF37' },
+
+  ratingRulesCard: {
+    backgroundColor: '#1A1A1A', borderWidth: 0.8, borderColor: '#333',
+    borderRadius: 16, padding: 16, marginBottom: 32, gap: 8,
+  },
+  ratingRulesTitle: { fontSize: 14, fontWeight: '700', color: '#D4AF37', marginBottom: 4 },
+  ratingRuleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  ratingRuleLabel: { fontSize: 13, color: '#AAAAAA', flex: 1 },
+  ratingRuleValue: { fontSize: 14, fontWeight: '700', minWidth: 36, textAlign: 'right' },
+  ratingRulesNote: { fontSize: 11, color: '#555555', marginTop: 8 },
 
   // Delete
   deleteTitle: { fontSize: 24, fontWeight: '700', color: '#FF4444', marginTop: 20, marginBottom: 12 },
@@ -1602,3 +1766,4 @@ const styles = StyleSheet.create({
   },
   chatSendButtonDisabled: { backgroundColor: '#666666' },
 });
+

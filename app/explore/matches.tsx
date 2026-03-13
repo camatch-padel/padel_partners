@@ -30,7 +30,8 @@ interface MatchWithDistance extends MatchWithDetails {
 }
 
 export default function ExploreMatchesScreen() {
-  const { backgroundImage } = useTheme();
+  const { backgroundImage, theme } = useTheme();
+  const isDark = theme === 'dark';
   const [matches, setMatches] = useState<MatchWithDistance[]>([]);
   const [loading, setLoading] = useState(true);
   const [locationSource, setLocationSource] = useState<'gps' | 'club' | 'none'>('none');
@@ -524,11 +525,11 @@ export default function ExploreMatchesScreen() {
     const isExpanded = expandedCards.has(item.id);
 
     return (
-      <Pressable style={styles.matchCard} onPress={() => toggleCard(item.id)}>
+      <Pressable style={[styles.matchCard, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]} onPress={() => toggleCard(item.id)}>
         {/* Header toujours visible */}
         <View style={styles.matchHeader}>
           <View style={styles.matchDateContainer}>
-            <Text style={styles.matchDate}>{formatDate(item.date)}</Text>
+            <Text style={[styles.matchDate, !isDark && { color: '#111111' }]}>{formatDate(item.date)}</Text>
             <Text style={styles.matchTime}>{item.time_slot}</Text>
           </View>
           <View style={styles.matchSpotsContainer}>
@@ -555,7 +556,7 @@ export default function ExploreMatchesScreen() {
               <View style={styles.matchInfoRow}>
                 <Ionicons name="location" size={18} color="#D4AF37" style={styles.matchInfoIcon} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.matchInfoText}>
+                  <Text style={[styles.matchInfoText, !isDark && { color: '#111111' }]}>
                     {item.court ? `${item.court.name} - ${item.court.city}` : 'Lieu non spécifié'}
                   </Text>
                   {item.distance !== undefined && (
@@ -634,7 +635,7 @@ export default function ExploreMatchesScreen() {
             <View style={styles.matchFooter}>
               <View style={styles.footerBadges}>
                 <Pressable
-                  style={styles.chatButton}
+                  style={[styles.chatButton, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]}
                   onPress={() => router.push(`/match/${item.id}` as any)}
                 >
                   <Ionicons
@@ -675,7 +676,7 @@ export default function ExploreMatchesScreen() {
   };
 
   const renderFilters = () => (
-    <View style={styles.filtersContainer}>
+    <View style={[styles.filtersContainer, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]}>
       <View style={styles.filterSection}>
         <Text style={styles.filterLabel}>Niveau minimum</Text>
         <LevelPyramid value={levelMin} onChange={setLevelMin} />
@@ -724,34 +725,34 @@ export default function ExploreMatchesScreen() {
         <Text style={styles.filterLabel}>Statut des parties</Text>
         <View style={styles.statusButtonsContainer}>
           <Pressable
-            style={[styles.statusButton, statusFilter === 'all' && styles.statusButtonActive]}
+            style={[styles.statusButton, statusFilter === 'all' && styles.statusButtonActive, !isDark && statusFilter !== 'all' && { backgroundColor: 'rgba(255,255,255,0.9)' }]}
             onPress={() => setStatusFilter('all')}
           >
-            <Text numberOfLines={1} style={[styles.statusButtonText, statusFilter === 'all' && styles.statusButtonTextActive]}>
+            <Text numberOfLines={1} style={[styles.statusButtonText, statusFilter === 'all' && styles.statusButtonTextActive, !isDark && statusFilter !== 'all' && { color: '#555555' }]}>
               Toutes
             </Text>
           </Pressable>
           <Pressable
-            style={[styles.statusButton, statusFilter === 'open' && styles.statusButtonActive]}
+            style={[styles.statusButton, statusFilter === 'open' && styles.statusButtonActive, !isDark && statusFilter !== 'open' && { backgroundColor: 'rgba(255,255,255,0.9)' }]}
             onPress={() => setStatusFilter('open')}
           >
-            <Text numberOfLines={1} style={[styles.statusButtonText, statusFilter === 'open' && styles.statusButtonTextActive]}>
+            <Text numberOfLines={1} style={[styles.statusButtonText, statusFilter === 'open' && styles.statusButtonTextActive, !isDark && statusFilter !== 'open' && { color: '#555555' }]}>
               Ouvertes
             </Text>
           </Pressable>
           <Pressable
-            style={[styles.statusButton, statusFilter === 'full' && styles.statusButtonActive]}
+            style={[styles.statusButton, statusFilter === 'full' && styles.statusButtonActive, !isDark && statusFilter !== 'full' && { backgroundColor: 'rgba(255,255,255,0.9)' }]}
             onPress={() => setStatusFilter('full')}
           >
-            <Text numberOfLines={1} style={[styles.statusButtonText, statusFilter === 'full' && styles.statusButtonTextActive]}>
+            <Text numberOfLines={1} style={[styles.statusButtonText, statusFilter === 'full' && styles.statusButtonTextActive, !isDark && statusFilter !== 'full' && { color: '#555555' }]}>
               Complètes
             </Text>
           </Pressable>
           <Pressable
-            style={[styles.statusButton, statusFilter === 'completed' && styles.statusButtonActive]}
+            style={[styles.statusButton, statusFilter === 'completed' && styles.statusButtonActive, !isDark && statusFilter !== 'completed' && { backgroundColor: 'rgba(255,255,255,0.9)' }]}
             onPress={() => setStatusFilter('completed')}
           >
-            <Text numberOfLines={1} style={[styles.statusButtonText, statusFilter === 'completed' && styles.statusButtonTextActive]}>
+            <Text numberOfLines={1} style={[styles.statusButtonText, statusFilter === 'completed' && styles.statusButtonTextActive, !isDark && statusFilter !== 'completed' && { color: '#555555' }]}>
               Terminées
             </Text>
           </Pressable>
@@ -775,7 +776,7 @@ export default function ExploreMatchesScreen() {
           <Text style={styles.title}>Chercher une partie</Text>
         </View>
         <Pressable
-          style={styles.filterToggle}
+          style={[styles.filterToggle, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]}
           onPress={() => setShowFilters(!showFilters)}
         >
           <Ionicons name="filter" size={20} color="#D4AF37" style={{ marginRight: 6 }} />

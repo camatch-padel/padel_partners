@@ -6,12 +6,12 @@
 Dans la console SQL de Supabase, exécutez le fichier `supabase-migration-avatars.sql` :
 
 ```sql
--- Ajouter la colonne avatar_url à la table Profiles
-ALTER TABLE "Profiles"
+-- Ajouter la colonne avatar_url à la table profiles
+ALTER TABLE profiles
 ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 
 -- Index pour améliorer les performances
-CREATE INDEX IF NOT EXISTS idx_profiles_avatar_url ON "Profiles"(avatar_url);
+CREATE INDEX IF NOT EXISTS idx_profiles_avatar_url ON profiles(avatar_url);
 ```
 
 ### 2. Créer le bucket Storage
@@ -90,3 +90,4 @@ Pour permettre l'upload de photos de profil, il faudra :
 4. Afficher l'avatar dans la page profil
 
 Voulez-vous que j'implémente l'upload de photos maintenant ?
+

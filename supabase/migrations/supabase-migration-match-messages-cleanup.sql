@@ -32,7 +32,7 @@ DROP TABLE IF EXISTS match_messages CASCADE;
 CREATE TABLE match_messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES "Profiles"(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
     message TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -128,3 +128,4 @@ BEGIN
     RAISE NOTICE '✅ Index créés pour les performances';
     RAISE NOTICE '✅ RLS activé avec politiques pour public/privé';
 END $$;
+

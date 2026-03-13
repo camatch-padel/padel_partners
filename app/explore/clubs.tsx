@@ -26,7 +26,8 @@ interface Club {
 }
 
 export default function ExploreClubsScreen() {
-  const { backgroundImage } = useTheme();
+  const { backgroundImage, theme } = useTheme();
+  const isDark = theme === 'dark';
   const [clubs, setClubs] = useState<Club[]>([]);
   const [filteredClubs, setFilteredClubs] = useState<Club[]>([]);
   const [loading, setLoading] = useState(true);
@@ -153,12 +154,12 @@ export default function ExploreClubsScreen() {
   };
 
   const renderClub = ({ item }: { item: Club }) => (
-    <View style={styles.clubCard}>
+    <View style={[styles.clubCard, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]}>
       <View style={styles.clubIcon}>
         <Ionicons name="business" size={24} color="#D4AF37" />
       </View>
       <View style={styles.clubInfo}>
-        <Text style={styles.clubName}>{item.name}</Text>
+        <Text style={[styles.clubName, !isDark && { color: '#111111' }]}>{item.name}</Text>
         <Text style={styles.clubCity}>{item.city}</Text>
         {item.address && <Text style={styles.clubAddress}>{item.address}</Text>}
       </View>
@@ -184,10 +185,10 @@ export default function ExploreClubsScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <View style={styles.searchContainer}>
+      <View style={[styles.searchContainer, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]}>
         <Ionicons name="search" size={20} color="#D4AF37" />
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, !isDark && { color: '#111111' }]}
           placeholder="Rechercher par nom ou ville..."
           placeholderTextColor="#666666"
           value={search}

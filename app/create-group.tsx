@@ -27,7 +27,8 @@ interface PlayerSearchResult {
 }
 
 export default function CreateGroupScreen() {
-  const { backgroundImage } = useTheme();
+  const { backgroundImage, theme } = useTheme();
+  const isDark = theme === 'dark';
   const [formData, setFormData] = useState<GroupFormData>({
     name: '',
     description: '',
@@ -187,7 +188,7 @@ export default function CreateGroupScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Nom du groupe *</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)', color: '#111111' }]}
             placeholder="Ex: Les Warriors du Padel"
             placeholderTextColor="#666666"
             value={formData.name}
@@ -200,7 +201,7 @@ export default function CreateGroupScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Description (optionnel)</Text>
           <TextInput
-            style={[styles.input, styles.textArea]}
+            style={[styles.input, styles.textArea, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)', color: '#111111' }]}
             placeholder="Décrivez votre groupe..."
             placeholderTextColor="#666666"
             value={formData.description}
@@ -214,10 +215,10 @@ export default function CreateGroupScreen() {
         {/* Recherche de joueurs */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Ajouter des joueurs *</Text>
-          <View style={styles.searchContainer}>
+          <View style={[styles.searchContainer, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]}>
             <Ionicons name="search" size={20} color="#D4AF37" style={styles.searchIcon} />
             <TextInput
-              style={styles.searchInput}
+              style={[styles.searchInput, !isDark && { color: '#111111' }]}
               placeholder="Chercher par nom ou prénom..."
               placeholderTextColor="#666666"
               value={searchQuery}
@@ -228,7 +229,7 @@ export default function CreateGroupScreen() {
 
           {/* Résultats de recherche */}
           {searchResults.length > 0 && (
-            <View style={styles.searchResults}>
+            <View style={[styles.searchResults, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]}>
               {searchResults.map((player) => (
                 <Pressable
                   key={player.id}
@@ -242,10 +243,10 @@ export default function CreateGroupScreen() {
                     size={48}
                   />
                   <View style={styles.playerInfo}>
-                    <Text style={styles.playerName}>
+                    <Text style={[styles.playerName, !isDark && { color: '#111111' }]}>
                       {player.firstname} {player.lastname}
                     </Text>
-                    <Text style={styles.playerDetails}>
+                    <Text style={[styles.playerDetails, !isDark && { color: '#555555' }]}>
                       @{player.username} · Niv. {player.declared_level.toFixed(1)}
                     </Text>
                   </View>
@@ -262,7 +263,7 @@ export default function CreateGroupScreen() {
                 Membres ajoutés ({formData.memberIds.length})
               </Text>
               {selectedMembers.map((player) => (
-                <View key={player.id} style={styles.selectedMemberItem}>
+                <View key={player.id} style={[styles.selectedMemberItem, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]}>
                   <Avatar
                     imageUrl={player.avatar_url}
                     firstName={player.firstname}
@@ -270,10 +271,10 @@ export default function CreateGroupScreen() {
                     size={48}
                   />
                   <View style={styles.playerInfo}>
-                    <Text style={styles.playerName}>
+                    <Text style={[styles.playerName, !isDark && { color: '#111111' }]}>
                       {player.firstname} {player.lastname}
                     </Text>
-                    <Text style={styles.playerDetails}>
+                    <Text style={[styles.playerDetails, !isDark && { color: '#555555' }]}>
                       Niv. {player.declared_level.toFixed(1)}
                     </Text>
                   </View>
@@ -296,6 +297,7 @@ export default function CreateGroupScreen() {
                 style={[
                   styles.iconButton,
                   formData.icon === iconName && styles.iconButtonSelected,
+                  !isDark && formData.icon !== iconName && { backgroundColor: 'rgba(255,255,255,0.9)' },
                 ]}
                 onPress={() => setFormData({ ...formData, icon: iconName })}
               >

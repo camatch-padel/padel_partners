@@ -1,12 +1,14 @@
 import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/constants/supabase';
+import * as Location from 'expo-location';
 import Logo from '@/components/Logo';
 import Avatar from '@/components/Avatar';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   ActivityIndicator,
   ImageBackground,
   Platform,
@@ -28,7 +30,7 @@ interface MyMatch {
   status: string;
   creator_id: string;
   participants_count: number;
-  court: { name: string; city: string } | null;
+  court: { name: string; city: string; latitude: number | null; longitude: number | null } | null;
   participant_previews?: {
     user_id: string;
     firstname: string;
@@ -48,8 +50,15 @@ interface MyTournament {
   category: string;
   event_type: string;
   status: string;
-  court: { name: string; city: string } | null;
+  court: { name: string; city: string; latitude: number | null; longitude: number | null } | null;
   demand_count: number;
+  min_ranking?: number | null;
+  participant_previews?: {
+    user_id: string;
+    firstname: string;
+    lastname: string;
+    avatar_url: string | null;
+  }[];
 }
 
 interface PlayerStats {
@@ -58,7 +67,18 @@ interface PlayerStats {
   losses: number;
   leftMatches: number;
   rightMatches: number;
+  lastMatchDelta: number | null;
+  totalDelta: number;
+  monthDelta: number;
 }
+
+const getRank = (level: number): { label: string; color: string; iconName: string } => {
+  if (level >= 9.5) return { label: 'ÉLITE', color: '#CC44FF', iconName: 'diamond' };
+  if (level >= 7.5) return { label: 'EXPERT', color: '#FF6B00', iconName: 'flame' };
+  if (level >= 5.5) return { label: 'AVANCÉ', color: '#D4AF37', iconName: 'trophy' };
+  if (level >= 3.5) return { label: 'CONFIRMÉ', color: '#44AAFF', iconName: 'star' };
+  return { label: 'DÉBUTANT', color: '#909090', iconName: 'tennisball-outline' };
+};
 
 const getRequiredPlayers = (format: unknown): number => {
   if (format === 4 || format === '4' || format === '2v2') return 4;
@@ -83,6 +103,19 @@ const parseMatchEndDate = (dateStr: string, timeSlot: string, durationMinutes: n
   return d;
 };
 
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  return Math.round(6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+};
+
 function PremiumSearchButton({
   onPress,
   title,
@@ -92,6 +125,30 @@ function PremiumSearchButton({
   title: string;
   isDark?: boolean;
 }) {
+  if (!isDark) {
+    return (
+      <View style={styles.premiumLightBorder}>
+        <Pressable
+          onPress={onPress}
+          style={({ pressed }) => [
+            styles.premiumLightPressable,
+            pressed && { opacity: 0.82, transform: [{ translateY: 1 }] },
+          ]}
+        >
+          <LinearGradient
+            colors={['#F8F6F0', '#DDD9CC']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={styles.premiumLightGradient}
+          >
+            <View style={styles.premiumLightHighlight} />
+            <Text style={styles.premiumLightText}>{title}</Text>
+          </LinearGradient>
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.premiumSearchWrapper}>
       <Pressable
@@ -99,22 +156,22 @@ function PremiumSearchButton({
         style={({ pressed }) => [styles.premiumSearchPressable, pressed && styles.premiumSearchPressed]}
       >
         <LinearGradient
-          colors={isDark ? ['#111214', '#0B0B0D'] : ['#FFFFFF', '#F5F5F0']}
+          colors={['#111214', '#0B0B0D']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={[styles.premiumSearchGradient, !isDark && { borderWidth: 1, borderColor: '#E0E0E0' }]}
+          style={styles.premiumSearchGradient}
         >
           <View style={styles.premiumShineLeft} />
           <View style={styles.premiumShineRight} />
           <LinearGradient
-            colors={isDark ? ['#17181B', '#0B0B0D'] : ['#FFFFFF', '#F0F0EC']}
+            colors={['#17181B', '#0B0B0D']}
             start={{ x: 0.15, y: 0 }}
             end={{ x: 0.85, y: 1 }}
             style={styles.premiumSearchInner}
           >
             <View style={styles.premiumReliefTop} />
             <View style={styles.premiumReliefBottom} />
-            <Text style={[styles.premiumSearchText, !isDark && { color: '#555555' }]}>{title}</Text>
+            <Text style={styles.premiumSearchText}>{title}</Text>
           </LinearGradient>
         </LinearGradient>
       </Pressable>
@@ -126,18 +183,19 @@ export default function HomeScreen() {
   const { backgroundImage, theme } = useTheme();
   const isDark = theme === 'dark';
   const C = {
-    cardBg: isDark ? (Platform.OS === 'android' ? '#0E1014' : 'rgba(16, 18, 22, 0.62)') : 'rgba(255, 255, 255, 0.78)',
+    cardBg: isDark ? (Platform.OS === 'android' ? '#0E1014' : 'rgba(16, 18, 22, 0.62)') : 'rgba(255, 255, 255, 0.45)',
     cardText: isDark ? '#FFFFFF' : '#111111',
     cardSubtext: isDark ? '#AAAAAA' : '#444444',
     statBg: isDark ? 'rgba(20, 19, 17, 0.78)' : 'rgba(255, 255, 255, 0.75)',
     gradientColors: isDark
       ? ['rgba(28, 23, 12, 0.94)', 'rgba(16, 14, 10, 0.96)', 'rgba(8, 8, 9, 0.98)'] as const
       : ['rgba(255, 255, 255, 0.92)', 'rgba(248, 245, 235, 0.95)', 'rgba(240, 238, 228, 0.98)'] as const,
-    levelBarBg: isDark ? '#141414' : '#DDDDDD',
+    levelBarBg: isDark ? '#141414' : '#141414',
   };
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [myMatches, setMyMatches] = useState<MyMatch[]>([]);
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [myGroups, setMyGroups] = useState<GroupWithMembers[]>([]);
   const [myTournaments, setMyTournaments] = useState<MyTournament[]>([]);
   const [playerStats, setPlayerStats] = useState<PlayerStats>({
@@ -146,6 +204,9 @@ export default function HomeScreen() {
     losses: 0,
     leftMatches: 0,
     rightMatches: 0,
+    lastMatchDelta: null,
+    totalDelta: 0,
+    monthDelta: 0,
   });
 
   useFocusEffect(
@@ -155,8 +216,21 @@ export default function HomeScreen() {
       loadMyGroups();
       loadMyTournaments();
       loadPlayerStats();
+      loadUserLocation();
     }, [])
   );
+
+  const loadUserLocation = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        setUserCoords({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+      }
+    } catch {
+      // géolocalisation indisponible
+    }
+  };
 
   const loadProfile = async () => {
     try {
@@ -274,7 +348,7 @@ export default function HomeScreen() {
         .from('matches')
         .select(`
           *,
-          court:courts(name, city)
+          court:courts(name, city, latitude, longitude)
         `)
         .in('status', ['open', 'full', 'completed']);
 
@@ -436,7 +510,8 @@ export default function HomeScreen() {
         .from('tournaments')
         .select(`
           *,
-          court:courts(name, city)
+          court:courts(name, city, latitude, longitude),
+          creator:profiles!tournaments_creator_id_fkey(firstname, lastname, avatar_url)
         `)
         .eq('creator_id', session.user.id)
         .in('status', ['searching', 'partner_found'])
@@ -481,10 +556,43 @@ export default function HomeScreen() {
           demandCountMap.set(d.tournament_id, count + 1);
         });
 
-        setMyTournaments(visibleTournaments.map(t => ({
-          ...t,
-          demand_count: demandCountMap.get(t.id) || 0,
-        })));
+        const { data: acceptedDemands } = tournamentIds.length > 0
+          ? await supabase
+              .from('tournament_demands')
+              .select(`
+                tournament_id,
+                user_id,
+                profile:profiles!tournament_demands_user_id_fkey(firstname, lastname, avatar_url)
+              `)
+              .in('tournament_id', tournamentIds)
+              .eq('status', 'accepted')
+          : { data: null };
+
+        const acceptedPartnerMap = new Map<string, any>();
+        acceptedDemands?.forEach((d: any) => {
+          acceptedPartnerMap.set(d.tournament_id, {
+            user_id: d.user_id,
+            firstname: d.profile?.firstname || '',
+            lastname: d.profile?.lastname || '',
+            avatar_url: d.profile?.avatar_url || null,
+          });
+        });
+
+        setMyTournaments(visibleTournaments.map(t => {
+          const creatorPreview = {
+            user_id: t.creator_id,
+            firstname: (t as any).creator?.firstname || '',
+            lastname: (t as any).creator?.lastname || '',
+            avatar_url: (t as any).creator?.avatar_url || null,
+          };
+          const partner = acceptedPartnerMap.get(t.id);
+          const participant_previews = partner ? [creatorPreview, partner] : [creatorPreview];
+          return {
+            ...t,
+            demand_count: demandCountMap.get(t.id) || 0,
+            participant_previews,
+          };
+        }));
       } else {
         setMyTournaments([]);
       }
@@ -499,6 +607,8 @@ export default function HomeScreen() {
       if (!session) return;
 
       const userId = session.user.id;
+      const orFilter = `team1_player1_id.eq.${userId},team1_player2_id.eq.${userId},team2_player1_id.eq.${userId},team2_player2_id.eq.${userId}`;
+
       const { data: resultsData } = await supabase
         .from('match_results')
         .select(`
@@ -510,20 +620,13 @@ export default function HomeScreen() {
           team2_player1_position,
           team2_player2_id,
           team2_player2_position,
-          winner_team
+          winner_team,
+          match:matches(date, time_slot)
         `)
-        .or(
-          `team1_player1_id.eq.${userId},team1_player2_id.eq.${userId},team2_player1_id.eq.${userId},team2_player2_id.eq.${userId}`
-        );
+        .or(orFilter);
 
       if (!resultsData) {
-        setPlayerStats({
-          totalMatches: 0,
-          wins: 0,
-          losses: 0,
-          leftMatches: 0,
-          rightMatches: 0,
-        });
+        setPlayerStats({ totalMatches: 0, wins: 0, losses: 0, leftMatches: 0, rightMatches: 0, lastMatchDelta: null, totalDelta: 0, monthDelta: 0 });
         return;
       }
 
@@ -559,13 +662,64 @@ export default function HomeScreen() {
         if (result.winner_team === 2 && isTeam1) losses += 1;
       });
 
-      setPlayerStats({
-        totalMatches: resultsData.length,
-        wins,
-        losses,
-        leftMatches,
-        rightMatches,
+      // Fetch unique player profiles (un seul appel pour tous les matchs)
+      const allPlayerIds = new Set<string>();
+      resultsData.forEach((r: any) => {
+        [r.team1_player1_id, r.team1_player2_id, r.team2_player1_id, r.team2_player2_id]
+          .filter(Boolean)
+          .forEach((id: string) => allPlayerIds.add(id));
       });
+      const { data: allPlayerData } = allPlayerIds.size > 0
+        ? await supabase.from('profiles').select('id, declared_level').in('id', Array.from(allPlayerIds))
+        : { data: [] as any[] };
+
+      const getLevel = (pid: string | null) =>
+        (allPlayerData || []).find((p: any) => p.id === pid)?.declared_level || 0;
+
+      const THRESHOLD = 1.0;
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+
+      let totalDelta = 0;
+      let monthDelta = 0;
+      let lastMatchDelta: number | null = null;
+
+      // Calcul delta pour chaque match avec gagnant
+      const resultsWithWinner = resultsData
+        .filter((r: any) => r.winner_team != null && r.match?.date)
+        .sort((a: any, b: any) => {
+          const dtA = new Date(`${a.match.date}T${a.match.time_slot || '00:00'}`).getTime();
+          const dtB = new Date(`${b.match.date}T${b.match.time_slot || '00:00'}`).getTime();
+          return dtA - dtB; // ordre chronologique pour cumuler totalDelta
+        });
+
+      resultsWithWinner.forEach((r: any, idx: number) => {
+        const isTeam1 = r.team1_player1_id === userId || r.team1_player2_id === userId;
+        const t1w = getLevel(r.team1_player1_id) + getLevel(r.team1_player2_id);
+        const t2w = getLevel(r.team2_player1_id) + getLevel(r.team2_player2_id);
+        const myW = isTeam1 ? t1w : t2w;
+        const oppW = isTeam1 ? t2w : t1w;
+        const iWon = r.winner_team === (isTeam1 ? 1 : 2);
+        const diff = oppW - myW;
+        const delta = iWon
+          ? (diff > THRESHOLD ? 0.3 : diff >= -THRESHOLD ? 0.1 : 0)
+          : (diff > THRESHOLD ? 0 : diff >= -THRESHOLD ? -0.1 : -0.3);
+
+        totalDelta = Math.round((totalDelta + delta) * 10) / 10;
+
+        const matchDate = new Date(r.match.date);
+        if (matchDate.getMonth() === currentMonth && matchDate.getFullYear() === currentYear) {
+          monthDelta = Math.round((monthDelta + delta) * 10) / 10;
+        }
+
+        // Dernier match = dernier élément après tri chronologique
+        if (idx === resultsWithWinner.length - 1) {
+          lastMatchDelta = delta;
+        }
+      });
+
+      setPlayerStats({ totalMatches: resultsData.length, wins, losses, leftMatches, rightMatches, lastMatchDelta, totalDelta, monthDelta });
     } catch (error) {
       console.error('Erreur chargement stats joueur:', error);
     }
@@ -597,12 +751,35 @@ export default function HomeScreen() {
   const partnerFoundTournaments = myTournaments.filter((t) => t.status === 'partner_found');
   const completedTournaments = myTournaments.filter((t) => t.status === 'completed');
   const declaredLevel = Number(profile?.declared_level || 0);
-  const hasCommunityLevel = profile?.community_level_votes > 0 && profile?.community_level != null;
+  const hasCommunityLevel = profile?.community_level != null;
   const estimatedLevel = Number(hasCommunityLevel ? profile.community_level : profile?.declared_level || 0);
   const declaredLevelPct = Math.min((declaredLevel / 10) * 100, 100);
   const estimatedLevelPct = Math.min((estimatedLevel / 10) * 100, 100);
   const playedWithResult = playerStats.wins + playerStats.losses;
   const winRate = playedWithResult > 0 ? Math.round((playerStats.wins / playedWithResult) * 100) : 0;
+  const rank = getRank(estimatedLevel);
+
+  const levelBarAnim = useRef(new Animated.Value(0)).current;
+  const deltaScaleAnim = useRef(new Animated.Value(0.7)).current;
+
+  useEffect(() => {
+    Animated.timing(levelBarAnim, {
+      toValue: estimatedLevelPct,
+      duration: 1000,
+      useNativeDriver: false,
+    }).start();
+    Animated.spring(deltaScaleAnim, {
+      toValue: 1,
+      tension: 60,
+      friction: 6,
+      useNativeDriver: true,
+    }).start();
+  }, [estimatedLevelPct, playerStats.totalDelta]);
+
+  const animatedBarWidth = levelBarAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ['0%', '100%'],
+  });
 
   if (loading) return <ActivityIndicator size="large" style={styles.loader} />;
 
@@ -655,28 +832,60 @@ export default function HomeScreen() {
               </View>
             </Pressable>
           </View>
-          <Text style={styles.welcomeText}>Bonjour, {profile.username}</Text>
+          <Text style={[styles.welcomeText, !isDark && { color: '#000000' }]}>Bonjour, {profile.username}</Text>
 
-          <View style={styles.playerStatsCard}>
+          <View style={[styles.playerStatsCard, { borderColor: rank.color + '99', shadowColor: rank.color }]}>
             <LinearGradient
               colors={C.gradientColors}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.playerStatsGradient}
             >
+              {/* Header */}
               <View style={styles.playerStatsHeaderRow}>
                 <Text style={[styles.playerStatsTitle, { color: C.cardText }]}>Progression joueur</Text>
-                <Text style={[styles.playerStatsXp, { color: C.cardText }]}>XP {playerStats.totalMatches * 12}</Text>
+                <Animated.Text style={[
+                  styles.playerStatsXp,
+                  {
+                    transform: [{ scale: deltaScaleAnim }],
+                    color: playerStats.totalDelta > 0
+                      ? '#44DD44'
+                      : playerStats.totalDelta < -0.2
+                      ? '#FF4444'
+                      : playerStats.totalDelta < 0
+                      ? '#FF8844'
+                      : '#AAAAAA',
+                  },
+                ]}>
+                  {playerStats.totalDelta > 0
+                    ? `+${playerStats.totalDelta}🔥`
+                    : playerStats.totalDelta < 0
+                    ? `${playerStats.totalDelta}`
+                    : '0'}
+                </Animated.Text>
               </View>
 
-              <Text style={[styles.playerStatsSectionLabel, { color: C.cardSubtext }]}>Niveau déclaré vs estimé</Text>
+              {/* Rank banner */}
+              <View style={[styles.rankBanner, { backgroundColor: rank.color + '18', borderColor: rank.color + '55' }]}>
+                <View style={[styles.rankIconCircle, { backgroundColor: rank.color + '33' }]}>
+                  <Ionicons name={rank.iconName as any} size={22} color={rank.color} />
+                </View>
+                <Text style={[styles.rankLabel, { color: rank.color }]}>{rank.label}</Text>
+                <View style={[styles.rankScoreBadge, { borderColor: rank.color + '88' }]}>
+                  <Text style={[styles.rankScoreValue, { color: rank.color }]}>{estimatedLevel.toFixed(1)}</Text>
+                  <Text style={styles.rankScoreSuffix}> / 10</Text>
+                </View>
+              </View>
+
+              {/* Level bar */}
+              <Text style={[styles.playerStatsSectionLabel, { color: C.cardSubtext }]}>Niveau déclaré VS Niveau estimé</Text>
               <View style={styles.levelCompareRow}>
                 <Text style={[styles.levelCompareValue, { color: C.cardText }]}>Déclaré {declaredLevel.toFixed(1)}</Text>
                 <Text style={[styles.levelCompareValue, { color: C.cardText }]}>Estimé {estimatedLevel.toFixed(1)}</Text>
               </View>
               <View style={styles.levelBarTrack}>
                 <View style={[styles.levelBarDeclared, { width: `${declaredLevelPct}%` }]} />
-                <View style={[styles.levelBarEstimated, { width: `${estimatedLevelPct}%`, backgroundColor: C.levelBarBg }]} />
+                <Animated.View style={[styles.levelBarEstimated, { width: animatedBarWidth, backgroundColor: C.levelBarBg }]} />
               </View>
               <View style={styles.levelLegendRow}>
                 <View style={styles.levelLegendItem}>
@@ -689,22 +898,34 @@ export default function HomeScreen() {
                 </View>
               </View>
 
+              {/* Stats */}
               <View style={styles.statsGrid}>
-                <View style={[styles.statCell, { backgroundColor: C.statBg }]}>
-                  <Text style={[styles.statValue, { color: C.cardText }]}>{playerStats.totalMatches}</Text>
-                  <Text style={[styles.statLabel, { color: C.cardSubtext }]}>Parties jouées</Text>
+                <View style={[styles.statCell, styles.statCellThird, { backgroundColor: C.statBg }]}>
+                  <Text style={[styles.statLabel, { color: C.cardSubtext }]}>Ce mois-ci :</Text>
+                  <Text style={[styles.statValue, {
+                    color: playerStats.monthDelta > 0
+                      ? '#44DD44'
+                      : playerStats.monthDelta < -0.2
+                      ? '#FF4444'
+                      : playerStats.monthDelta < 0
+                      ? '#FF8844'
+                      : C.cardText,
+                  }]}>
+                    {playerStats.monthDelta > 0 ? `+${playerStats.monthDelta}` : `${playerStats.monthDelta}`}
+                    <Text style={[styles.statLabel, { color: C.cardSubtext, fontWeight: '400' }]}> de progression</Text>
+                  </Text>
                 </View>
-                <View style={[styles.statCell, { backgroundColor: C.statBg }]}>
-                  <Text style={[styles.statValue, { color: C.cardText }]}>{playerStats.wins}/{playerStats.losses}</Text>
-                  <Text style={[styles.statLabel, { color: C.cardSubtext }]}>Victoires / Défaites</Text>
+                <View style={[styles.statCell, styles.statCellThird, { backgroundColor: C.statBg, justifyContent: 'center' }]}>
+                  <Text style={[styles.statValue, { color: C.cardText }]}>
+                    {playerStats.totalMatches}
+                    <Text style={[styles.statLabel, { color: C.cardSubtext, fontWeight: '400' }]}> matchs joués</Text>
+                  </Text>
                 </View>
-                <View style={[styles.statCell, { backgroundColor: C.statBg }]}>
-                  <Text style={[styles.statValue, { color: C.cardText }]}>{winRate}%</Text>
-                  <Text style={[styles.statLabel, { color: C.cardSubtext }]}>Ratio victoire</Text>
-                </View>
-                <View style={[styles.statCell, { backgroundColor: C.statBg }]}>
-                  <Text style={[styles.statValue, { color: C.cardText }]}>{playerStats.leftMatches}/{playerStats.rightMatches}</Text>
-                  <Text style={[styles.statLabel, { color: C.cardSubtext }]}>Gauche / Droite</Text>
+                <View style={[styles.statCell, styles.statCellThird, { backgroundColor: C.statBg, justifyContent: 'center' }]}>
+                  <Text style={[styles.statValue, { color: C.cardText }]}>
+                    {playerStats.wins}
+                    <Text style={[styles.statLabel, { color: C.cardSubtext, fontWeight: '400' }]}> victoires</Text>
+                  </Text>
                 </View>
               </View>
             </LinearGradient>
@@ -716,7 +937,7 @@ export default function HomeScreen() {
           <View style={styles.rowInline}>
             <PremiumSearchButton
               title="Rechercher une partie"
-              onPress={() => router.push('/(tabs)/explore')}
+              onPress={() => router.push('/explore/matches' as any)}
               isDark={isDark}
             />
           </View>
@@ -760,12 +981,19 @@ export default function HomeScreen() {
                     </View>
 
                     {match.court && (
-                      <Text style={styles.matchCity} numberOfLines={1}>
-                        {match.court.city}
-                      </Text>
+                      <>
+                        <Text style={[styles.matchCity, !isDark && { color: '#111111' }]} numberOfLines={1}>
+                          {match.court.city} · {match.court.name}
+                        </Text>
+                        {userCoords && match.court.latitude && match.court.longitude && (
+                          <Text style={[styles.matchCourtInfo, !isDark && { color: '#111111' }]}>
+                            {calculateDistance(userCoords.lat, userCoords.lng, Number(match.court.latitude), Number(match.court.longitude))} km
+                          </Text>
+                        )}
+                      </>
                     )}
 
-                    <Text style={styles.matchLevel}>
+                    <Text style={[styles.matchLevel, !isDark && { color: '#111111' }]}>
                       Niveau mini {match.level_min.toFixed(1)}
                     </Text>
 
@@ -780,7 +1008,7 @@ export default function HomeScreen() {
                               imageUrl={p.avatar_url}
                               firstName={p.firstname}
                               lastName={p.lastname}
-                              size={18}
+                              size={36}
                               style={styles.matchAvatar}
                             />
                           </View>
@@ -819,7 +1047,7 @@ export default function HomeScreen() {
                 return (
                   <Pressable
                     key={match.id}
-                    style={({ pressed }) => [styles.matchCard, styles.matchCardCompact, { backgroundColor: C.cardBg }, pressed && styles.cardPressed]}
+                    style={({ pressed }) => [styles.matchCard, styles.matchCardCompact, { borderColor: '#FF4444', backgroundColor: C.cardBg }, pressed && styles.cardPressed]}
                     onPress={() => handleMatchPress(match)}
                   >
                     <View style={styles.matchCardHeader}>
@@ -841,12 +1069,19 @@ export default function HomeScreen() {
                     </View>
 
                     {match.court && (
-                      <Text style={styles.matchCity} numberOfLines={1}>
-                        {match.court.city}
-                      </Text>
+                      <>
+                        <Text style={[styles.matchCity, !isDark && { color: '#111111' }]} numberOfLines={1}>
+                          {match.court.city} · {match.court.name}
+                        </Text>
+                        {userCoords && match.court.latitude && match.court.longitude && (
+                          <Text style={[styles.matchCourtInfo, !isDark && { color: '#111111' }]}>
+                            {calculateDistance(userCoords.lat, userCoords.lng, Number(match.court.latitude), Number(match.court.longitude))} km
+                          </Text>
+                        )}
+                      </>
                     )}
 
-                    <Text style={styles.matchLevel}>
+                    <Text style={[styles.matchLevel, !isDark && { color: '#111111' }]}>
                       Niveau mini {match.level_min.toFixed(1)}
                     </Text>
 
@@ -861,7 +1096,7 @@ export default function HomeScreen() {
                               imageUrl={p.avatar_url}
                               firstName={p.firstname}
                               lastName={p.lastname}
-                              size={18}
+                              size={36}
                               style={styles.matchAvatar}
                             />
                           </View>
@@ -926,14 +1161,39 @@ export default function HomeScreen() {
                     </View>
 
                     {tournament.court && (
-                      <Text style={styles.matchCity} numberOfLines={1}>
-                        {tournament.court.city}
-                      </Text>
+                      <>
+                        <Text style={[styles.matchCity, !isDark && { color: '#111111' }]} numberOfLines={1}>
+                          {tournament.court.city} · {tournament.court.name}
+                        </Text>
+                        {userCoords && tournament.court.latitude && tournament.court.longitude && (
+                          <Text style={[styles.matchCourtInfo, !isDark && { color: '#111111' }]}>
+                            {calculateDistance(userCoords.lat, userCoords.lng, Number(tournament.court.latitude), Number(tournament.court.longitude))} km
+                          </Text>
+                        )}
+                      </>
                     )}
 
-                    <View style={styles.matchFooter}>
-                      <Text style={[styles.matchPlayers, { color: C.cardText }]}>{tournament.category}</Text>
-                      <Text style={[styles.matchPlayers, { color: C.cardText }]}>{tournament.event_type}</Text>
+                    <Text style={[styles.matchPlayers, { color: C.cardText }]}>{tournament.category}</Text>
+                    {tournament.min_ranking != null && (
+                      <Text style={[styles.matchLevel, !isDark && { color: '#111111' }]}>
+                        Classement mini : {tournament.min_ranking}
+                      </Text>
+                    )}
+                    <View style={styles.matchAvatarsRow}>
+                      {tournament.participant_previews?.slice(0, 2).map((p, index) => (
+                        <View
+                          key={p.user_id}
+                          style={[styles.matchAvatarItem, index > 0 && styles.matchAvatarOverlap]}
+                        >
+                          <Avatar
+                            imageUrl={p.avatar_url}
+                            firstName={p.firstname}
+                            lastName={p.lastname}
+                            size={36}
+                            style={styles.matchAvatar}
+                          />
+                        </View>
+                      ))}
                     </View>
                   </Pressable>
                 );
@@ -966,14 +1226,39 @@ export default function HomeScreen() {
                     </View>
 
                     {tournament.court && (
-                      <Text style={styles.matchCity} numberOfLines={1}>
-                        {tournament.court.city}
-                      </Text>
+                      <>
+                        <Text style={[styles.matchCity, !isDark && { color: '#111111' }]} numberOfLines={1}>
+                          {tournament.court.city} · {tournament.court.name}
+                        </Text>
+                        {userCoords && tournament.court.latitude && tournament.court.longitude && (
+                          <Text style={[styles.matchCourtInfo, !isDark && { color: '#111111' }]}>
+                            {calculateDistance(userCoords.lat, userCoords.lng, Number(tournament.court.latitude), Number(tournament.court.longitude))} km
+                          </Text>
+                        )}
+                      </>
                     )}
 
-                    <View style={styles.matchFooter}>
-                      <Text style={[styles.matchPlayers, { color: C.cardText }]}>{tournament.category}</Text>
-                      <Text style={[styles.matchPlayers, { color: C.cardText }]}>{tournament.event_type}</Text>
+                    <Text style={[styles.matchPlayers, { color: C.cardText }]}>{tournament.category}</Text>
+                    {tournament.min_ranking != null && (
+                      <Text style={[styles.matchLevel, !isDark && { color: '#111111' }]}>
+                        Classement mini : {tournament.min_ranking}
+                      </Text>
+                    )}
+                    <View style={styles.matchAvatarsRow}>
+                      {tournament.participant_previews?.slice(0, 2).map((p, index) => (
+                        <View
+                          key={p.user_id}
+                          style={[styles.matchAvatarItem, index > 0 && styles.matchAvatarOverlap]}
+                        >
+                          <Avatar
+                            imageUrl={p.avatar_url}
+                            firstName={p.firstname}
+                            lastName={p.lastname}
+                            size={36}
+                            style={styles.matchAvatar}
+                          />
+                        </View>
+                      ))}
                     </View>
                   </Pressable>
               ))}
@@ -998,14 +1283,39 @@ export default function HomeScreen() {
                     </View>
 
                     {tournament.court && (
-                      <Text style={styles.matchCity} numberOfLines={1}>
-                        {tournament.court.city}
-                      </Text>
+                      <>
+                        <Text style={[styles.matchCity, !isDark && { color: '#111111' }]} numberOfLines={1}>
+                          {tournament.court.city} · {tournament.court.name}
+                        </Text>
+                        {userCoords && tournament.court.latitude && tournament.court.longitude && (
+                          <Text style={[styles.matchCourtInfo, !isDark && { color: '#111111' }]}>
+                            {calculateDistance(userCoords.lat, userCoords.lng, Number(tournament.court.latitude), Number(tournament.court.longitude))} km
+                          </Text>
+                        )}
+                      </>
                     )}
 
-                    <View style={styles.matchFooter}>
-                      <Text style={[styles.matchPlayers, { color: C.cardText }]}>{tournament.category}</Text>
-                      <Text style={[styles.matchPlayers, { color: C.cardText }]}>{tournament.event_type}</Text>
+                    <Text style={[styles.matchPlayers, { color: C.cardText }]}>{tournament.category}</Text>
+                    {tournament.min_ranking != null && (
+                      <Text style={[styles.matchLevel, !isDark && { color: '#111111' }]}>
+                        Classement mini : {tournament.min_ranking}
+                      </Text>
+                    )}
+                    <View style={styles.matchAvatarsRow}>
+                      {tournament.participant_previews?.slice(0, 2).map((p, index) => (
+                        <View
+                          key={p.user_id}
+                          style={[styles.matchAvatarItem, index > 0 && styles.matchAvatarOverlap]}
+                        >
+                          <Avatar
+                            imageUrl={p.avatar_url}
+                            firstName={p.firstname}
+                            lastName={p.lastname}
+                            size={36}
+                            style={styles.matchAvatar}
+                          />
+                        </View>
+                      ))}
                     </View>
                   </Pressable>
               ))}
@@ -1114,6 +1424,45 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     gap: 8,
   },
+  rankBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 10,
+  },
+  rankIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rankLabel: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 2.5,
+  },
+  rankScoreBadge: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  rankScoreValue: {
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  rankScoreSuffix: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#666666',
+  },
   playerStatsHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1127,8 +1476,8 @@ const styles = StyleSheet.create({
   },
   playerStatsXp: {
     color: '#D4AF37',
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '800',
   },
   playerStatsSectionLabel: {
     color: '#C9B27A',
@@ -1203,7 +1552,7 @@ const styles = StyleSheet.create({
   statsGrid: {
     marginTop: 4,
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
     gap: 8,
   },
   statCell: {
@@ -1214,6 +1563,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(212, 175, 55, 0.28)',
     backgroundColor: 'rgba(20, 19, 17, 0.78)',
+  },
+  statCellThird: {
+    width: undefined,
+    flex: 1,
   },
   statValue: {
     color: '#FFFFFF',
@@ -1233,7 +1586,8 @@ const styles = StyleSheet.create({
     height: 62,
   },
   premiumSearchWrapper: {
-    flex: 1,
+    width: '100%',
+    height: 50,
     shadowColor: '#D4AF37',
     shadowOpacity: 0.22,
     shadowRadius: 10,
@@ -1358,11 +1712,11 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   sectionTournamentTight: {
-    height: 226,
+    height: 252,
     marginTop: -8,
   },
   rowInline: {
-    height: 62,
+    height: 50,
     marginBottom: 10,
   },
   sectionTitle: {
@@ -1466,7 +1820,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   matchAvatarOverlap: {
-    marginLeft: -6,
+    marginLeft: -10,
   },
   matchAvatar: {
     borderColor: '#101216',
@@ -1479,6 +1833,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   matchLevel: {
+    fontSize: 10,
+    color: '#AAAAAA',
+  },
+  matchCourtInfo: {
     fontSize: 10,
     color: '#AAAAAA',
   },
@@ -1606,5 +1964,53 @@ const styles = StyleSheet.create({
   cardPressed: {
     transform: [{ scale: 0.985 }],
     shadowOpacity: 0.45,
+  },
+  premiumLightBorder: {
+    width: '100%',
+    height: 50,
+    borderRadius: 30,
+    borderWidth: 1.5,
+    borderColor: '#D4AF37',
+    shadowColor: '#B8940A',
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5,
+  },
+  premiumLightPressable: {
+    flex: 1,
+    borderRadius: 28,
+    overflow: 'hidden' as const,
+  },
+  premiumLightGradient: {
+    flex: 1,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    overflow: 'hidden' as const,
+  },
+  premiumLightHighlight: {
+    position: 'absolute' as const,
+    top: 2,
+    left: 14,
+    right: 14,
+    height: 1.5,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 2,
+  },
+  premiumLightShadowLine: {
+    position: 'absolute' as const,
+    bottom: 2,
+    left: 14,
+    right: 14,
+    height: 1,
+    backgroundColor: 'rgba(140,120,70,0.4)',
+    borderRadius: 2,
+  },
+  premiumLightText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#1A1A1A',
+    letterSpacing: 0.15,
+    textAlign: 'center' as const,
   },
 });

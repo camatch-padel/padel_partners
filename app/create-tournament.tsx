@@ -44,7 +44,8 @@ const CREATE_TOURNAMENT_STEP_TITLES = [
 ];
 
 export default function CreateTournamentModal() {
-  const { backgroundImage } = useTheme();
+  const { backgroundImage, theme } = useTheme();
+  const isDark = theme === 'dark';
   const [formData, setFormData] = useState<TournamentFormData>({
     date: new Date(),
     timeSlot: '',
@@ -223,7 +224,7 @@ export default function CreateTournamentModal() {
       <Text style={styles.stepTitle}>Date du tournoi</Text>
 
       {Platform.OS === 'ios' ? (
-        <View style={styles.calendarContainer}>
+        <View style={[styles.calendarContainer, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]}>
           <DateTimePicker
             value={formData.date}
             mode="date"
@@ -240,11 +241,11 @@ export default function CreateTournamentModal() {
       ) : (
         <>
           <Pressable
-            style={styles.dateButton}
+            style={[styles.dateButton, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]}
             onPress={() => setShowDatePicker(true)}
           >
             <Ionicons name="calendar" size={32} color="#D4AF37" />
-            <Text style={styles.dateButtonText}>{formatDate(formData.date)}</Text>
+            <Text style={[styles.dateButtonText, !isDark && { color: '#111111' }]}>{formatDate(formData.date)}</Text>
           </Pressable>
 
           {showDatePicker && (
@@ -264,7 +265,7 @@ export default function CreateTournamentModal() {
         </>
       )}
 
-      <View style={styles.selectedDateDisplay}>
+      <View style={[styles.selectedDateDisplay, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]}>
         <Ionicons name="calendar" size={20} color="#D4AF37" />
         <Text style={styles.selectedDateText}>{formatDate(formData.date)}</Text>
       </View>
@@ -279,6 +280,7 @@ export default function CreateTournamentModal() {
         style={[
           styles.noTimeButton,
           formData.timeSlot === '' && styles.noTimeButtonSelected,
+          !isDark && formData.timeSlot !== '' && { backgroundColor: 'rgba(255,255,255,0.9)' },
         ]}
         onPress={() => setFormData({ ...formData, timeSlot: '' })}
       >
@@ -304,6 +306,7 @@ export default function CreateTournamentModal() {
             style={[
               styles.timeSlot,
               formData.timeSlot === slot && styles.timeSlotSelected,
+              !isDark && formData.timeSlot !== slot && { backgroundColor: 'rgba(255,255,255,0.9)' },
             ]}
             onPress={() => setFormData({ ...formData, timeSlot: slot })}
           >
@@ -311,6 +314,7 @@ export default function CreateTournamentModal() {
               style={[
                 styles.timeSlotText,
                 formData.timeSlot === slot && styles.timeSlotTextSelected,
+                !isDark && formData.timeSlot !== slot && { color: '#333333' },
               ]}
             >
               {slot}
@@ -335,10 +339,10 @@ export default function CreateTournamentModal() {
       <View style={styles.stepContainer}>
         <Text style={styles.stepTitle}>Club du tournoi *</Text>
 
-        <View style={styles.clubSearchContainer}>
+        <View style={[styles.clubSearchContainer, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]}>
           <Ionicons name="search" size={20} color="#D4AF37" />
           <TextInput
-            style={styles.clubSearchInput}
+            style={[styles.clubSearchInput, !isDark && { color: '#111111' }]}
             placeholder="Rechercher par nom ou ville..."
             placeholderTextColor="#666666"
             value={clubSearch}
@@ -371,6 +375,7 @@ export default function CreateTournamentModal() {
                 style={[
                   styles.clubItem,
                   formData.clubId === court.id && styles.clubItemSelected,
+                  !isDark && formData.clubId !== court.id && { backgroundColor: 'rgba(255,255,255,0.9)' },
                 ]}
                 onPress={() => setFormData({ ...formData, clubId: court.id })}
               >
@@ -378,6 +383,7 @@ export default function CreateTournamentModal() {
                   style={[
                     styles.clubItemName,
                     formData.clubId === court.id && styles.clubItemTextSelected,
+                    !isDark && formData.clubId !== court.id && { color: '#111111' },
                   ]}
                 >
                   {court.name}
@@ -415,6 +421,7 @@ export default function CreateTournamentModal() {
             style={[
               styles.optionButton,
               formData.category === cat.value && styles.optionButtonSelected,
+              !isDark && formData.category !== cat.value && { backgroundColor: 'rgba(255,255,255,0.9)' },
             ]}
             onPress={() => setFormData({ ...formData, category: cat.value })}
           >
@@ -422,6 +429,7 @@ export default function CreateTournamentModal() {
               style={[
                 styles.optionText,
                 formData.category === cat.value && styles.optionTextSelected,
+                !isDark && formData.category !== cat.value && { color: '#333333' },
               ]}
             >
               {cat.label}
@@ -443,6 +451,7 @@ export default function CreateTournamentModal() {
             style={[
               styles.optionButtonLarge,
               formData.eventType === type.value && styles.optionButtonSelected,
+              !isDark && formData.eventType !== type.value && { backgroundColor: 'rgba(255,255,255,0.9)' },
             ]}
             onPress={() => setFormData({ ...formData, eventType: type.value })}
           >
@@ -462,6 +471,7 @@ export default function CreateTournamentModal() {
               style={[
                 styles.optionText,
                 formData.eventType === type.value && styles.optionTextSelected,
+                !isDark && formData.eventType !== type.value && { color: '#333333' },
               ]}
             >
               {type.label}
@@ -483,6 +493,7 @@ export default function CreateTournamentModal() {
             style={[
               styles.optionButton,
               formData.ageCategory === age.value && styles.optionButtonSelected,
+              !isDark && formData.ageCategory !== age.value && { backgroundColor: 'rgba(255,255,255,0.9)' },
             ]}
             onPress={() => setFormData({ ...formData, ageCategory: age.value })}
           >
@@ -490,6 +501,7 @@ export default function CreateTournamentModal() {
               style={[
                 styles.optionText,
                 formData.ageCategory === age.value && styles.optionTextSelected,
+                !isDark && formData.ageCategory !== age.value && { color: '#333333' },
               ]}
             >
               {age.label}
@@ -509,7 +521,7 @@ export default function CreateTournamentModal() {
 
       <View style={styles.rankingInputContainer}>
         <TextInput
-          style={styles.rankingInput}
+          style={[styles.rankingInput, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)', color: '#D4AF37' }]}
           value={rankingText}
           onChangeText={(text) => {
             const cleaned = text.replace(/[^0-9]/g, '');
@@ -544,6 +556,7 @@ export default function CreateTournamentModal() {
             style={[
               styles.optionButtonLarge,
               formData.playerPosition === pos.value && styles.optionButtonSelected,
+              !isDark && formData.playerPosition !== pos.value && { backgroundColor: 'rgba(255,255,255,0.9)' },
             ]}
             onPress={() => setFormData({ ...formData, playerPosition: pos.value })}
           >
@@ -563,6 +576,7 @@ export default function CreateTournamentModal() {
               style={[
                 styles.optionText,
                 formData.playerPosition === pos.value && styles.optionTextSelected,
+                !isDark && formData.playerPosition !== pos.value && { color: '#333333' },
               ]}
             >
               {pos.label}
@@ -584,6 +598,7 @@ export default function CreateTournamentModal() {
             style={[
               styles.visibilityButton,
               formData.visibility === option.value && styles.visibilityButtonSelected,
+              !isDark && formData.visibility !== option.value && { backgroundColor: 'rgba(255,255,255,0.9)' },
             ]}
             onPress={() =>
               setFormData({
@@ -603,6 +618,7 @@ export default function CreateTournamentModal() {
               style={[
                 styles.visibilityText,
                 formData.visibility === option.value && styles.visibilityTextSelected,
+                !isDark && formData.visibility !== option.value && { color: '#333333' },
               ]}
             >
               {option.label}
@@ -626,6 +642,7 @@ export default function CreateTournamentModal() {
                   style={[
                     styles.groupItem,
                     formData.groupId === group.id && styles.groupItemSelected,
+                    !isDark && formData.groupId !== group.id && { backgroundColor: 'rgba(255,255,255,0.9)' },
                   ]}
                   onPress={() => setFormData({ ...formData, groupId: group.id })}
                 >
@@ -660,7 +677,7 @@ export default function CreateTournamentModal() {
               <Ionicons name="calendar" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
               <Text style={styles.recapLabel}>Date</Text>
             </View>
-            <Text style={styles.recapValue}>{formatDate(formData.date)}</Text>
+            <Text style={[styles.recapValue, !isDark && { color: '#111111' }]}>{formatDate(formData.date)}</Text>
           </View>
 
           <View style={styles.recapItem}>
@@ -668,7 +685,7 @@ export default function CreateTournamentModal() {
               <Ionicons name="time" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
               <Text style={styles.recapLabel}>Heure</Text>
             </View>
-            <Text style={styles.recapValue}>
+            <Text style={[styles.recapValue, !isDark && { color: '#111111' }]}>
               {formData.timeSlot || 'Non précisée'}
             </Text>
           </View>
@@ -678,7 +695,7 @@ export default function CreateTournamentModal() {
               <Ionicons name="business" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
               <Text style={styles.recapLabel}>Club</Text>
             </View>
-            <Text style={styles.recapValue}>
+            <Text style={[styles.recapValue, !isDark && { color: '#111111' }]}>
               {selectedCourt
                 ? `${selectedCourt.name} - ${selectedCourt.city}`
                 : 'Non spécifié'}
@@ -690,7 +707,7 @@ export default function CreateTournamentModal() {
               <Ionicons name="trophy" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
               <Text style={styles.recapLabel}>Catégorie</Text>
             </View>
-            <Text style={styles.recapValue}>{formData.category}</Text>
+            <Text style={[styles.recapValue, !isDark && { color: '#111111' }]}>{formData.category}</Text>
           </View>
 
           <View style={styles.recapItem}>
@@ -698,7 +715,7 @@ export default function CreateTournamentModal() {
               <Ionicons name="people" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
               <Text style={styles.recapLabel}>Type</Text>
             </View>
-            <Text style={styles.recapValue}>{formData.eventType}</Text>
+            <Text style={[styles.recapValue, !isDark && { color: '#111111' }]}>{formData.eventType}</Text>
           </View>
 
           <View style={styles.recapItem}>
@@ -706,7 +723,7 @@ export default function CreateTournamentModal() {
               <Ionicons name="person" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
               <Text style={styles.recapLabel}>Âge</Text>
             </View>
-            <Text style={styles.recapValue}>{formData.ageCategory}</Text>
+            <Text style={[styles.recapValue, !isDark && { color: '#111111' }]}>{formData.ageCategory}</Text>
           </View>
 
           <View style={styles.recapItem}>
@@ -714,7 +731,7 @@ export default function CreateTournamentModal() {
               <Ionicons name="podium" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
               <Text style={styles.recapLabel}>Classement min.</Text>
             </View>
-            <Text style={styles.recapValue}>{formData.minRanking}</Text>
+            <Text style={[styles.recapValue, !isDark && { color: '#111111' }]}>{formData.minRanking}</Text>
           </View>
 
           <View style={styles.recapItem}>
@@ -722,7 +739,7 @@ export default function CreateTournamentModal() {
               <Ionicons name="hand-left" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
               <Text style={styles.recapLabel}>Position</Text>
             </View>
-            <Text style={styles.recapValue}>{formData.playerPosition}</Text>
+            <Text style={[styles.recapValue, !isDark && { color: '#111111' }]}>{formData.playerPosition}</Text>
           </View>
 
           <View style={styles.recapItem}>
@@ -730,7 +747,7 @@ export default function CreateTournamentModal() {
               <Ionicons name="eye" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
               <Text style={styles.recapLabel}>Visibilité</Text>
             </View>
-            <Text style={styles.recapValue}>
+            <Text style={[styles.recapValue, !isDark && { color: '#111111' }]}>
               {formData.visibility === 'tous'
                 ? 'Tous'
                 : selectedGroup
@@ -814,7 +831,7 @@ export default function CreateTournamentModal() {
       {currentStep < 9 && !(currentStep === 2 && keyboardVisible) && (
         <View style={styles.footer}>
           {currentStep > 0 && (
-            <Pressable style={styles.footerButton} onPress={goToPreviousStep}>
+            <Pressable style={[styles.footerButton, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]} onPress={goToPreviousStep}>
               <Text style={styles.footerButtonText}>← Précédent</Text>
             </Pressable>
           )}

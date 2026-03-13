@@ -25,7 +25,8 @@ import {
 const { width } = Dimensions.get('window');
 
 export default function CreateMatchModal() {
-  const { backgroundImage } = useTheme();
+  const { backgroundImage, theme } = useTheme();
+  const isDark = theme === 'dark';
   // État du formulaire
   const [formData, setFormData] = useState<MatchFormData>({
     date: new Date(),
@@ -171,10 +172,15 @@ export default function CreateMatchModal() {
       if (matchError) throw matchError;
 
       // 3. Ajouter le créateur comme premier participant
-      await supabase.from('match_participants').insert({
+      const { error: participantError } = await supabase.from('match_participants').insert({
         match_id: match.id,
         user_id: session.user.id,
       });
+      if (participantError) {
+        // Best-effort cleanup si l'insert participant echoue apres creation du match
+        await supabase.from('matches').delete().eq('id', match.id);
+        throw participantError;
+      }
 
       // 4. Succès : afficher message et retour home
       Alert.alert('Succès', 'Votre partie a été créée !', [
@@ -205,7 +211,7 @@ export default function CreateMatchModal() {
       <Text style={styles.stepTitle}>Choisissez la date de la partie</Text>
 
       {Platform.OS === 'ios' ? (
-        <View style={styles.calendarContainer}>
+        <View style={[styles.calendarContainer, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]}>
           <DateTimePicker
             value={formData.date}
             mode="date"
@@ -222,11 +228,11 @@ export default function CreateMatchModal() {
       ) : (
         <>
           <Pressable
-            style={styles.dateButton}
+            style={[styles.dateButton, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]}
             onPress={() => setShowDatePicker(true)}
           >
             <Ionicons name="calendar" size={32} color="#D4AF37" />
-            <Text style={styles.dateButtonText}>{formatDate(formData.date)}</Text>
+            <Text style={[styles.dateButtonText, !isDark && { color: '#111111' }]}>{formatDate(formData.date)}</Text>
           </Pressable>
 
           {showDatePicker && (
@@ -246,7 +252,7 @@ export default function CreateMatchModal() {
         </>
       )}
 
-      <View style={styles.selectedDateDisplay}>
+      <View style={[styles.selectedDateDisplay, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]}>
         <Ionicons name="calendar" size={20} color="#D4AF37" />
         <Text style={styles.selectedDateText}>{formatDate(formData.date)}</Text>
       </View>
@@ -264,13 +270,15 @@ export default function CreateMatchModal() {
             key={slot}
             style={[
               styles.timeSlot,
-              formData.timeSlot === slot && styles.timeSlotSelected
+              formData.timeSlot === slot && styles.timeSlotSelected,
+              !isDark && formData.timeSlot !== slot && { backgroundColor: 'rgba(255,255,255,0.9)' }
             ]}
             onPress={() => setFormData({ ...formData, timeSlot: slot })}
           >
             <Text style={[
               styles.timeSlotText,
-              formData.timeSlot === slot && styles.timeSlotTextSelected
+              formData.timeSlot === slot && styles.timeSlotTextSelected,
+              !isDark && formData.timeSlot !== slot && { color: '#333333' }
             ]}>
               {slot}
             </Text>
@@ -330,7 +338,8 @@ export default function CreateMatchModal() {
             key={format.value}
             style={[
               styles.formatButton,
-              formData.format === format.value && styles.formatButtonSelected
+              formData.format === format.value && styles.formatButtonSelected,
+              !isDark && formData.format !== format.value && { backgroundColor: 'rgba(255,255,255,0.9)' }
             ]}
             onPress={() => setFormData({ ...formData, format: format.value as 2 | 4 })}
           >
@@ -342,7 +351,8 @@ export default function CreateMatchModal() {
             />
             <Text style={[
               styles.formatText,
-              formData.format === format.value && styles.formatTextSelected
+              formData.format === format.value && styles.formatTextSelected,
+              !isDark && formData.format !== format.value && { color: '#333333' }
             ]}>
               {format.label}
             </Text>
@@ -378,10 +388,10 @@ export default function CreateMatchModal() {
       <View style={styles.stepContainer}>
         <Text style={styles.stepTitle}>Club (optionnel)</Text>
 
-        <View style={styles.clubSearchContainer}>
+        <View style={[styles.clubSearchContainer, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]}>
           <Ionicons name="search" size={20} color="#D4AF37" />
           <TextInput
-            style={styles.clubSearchInput}
+            style={[styles.clubSearchInput, !isDark && { color: '#111111' }]}
             placeholder="Rechercher par nom ou ville..."
             placeholderTextColor="#666666"
             value={clubSearch}
@@ -402,7 +412,8 @@ export default function CreateMatchModal() {
             <Pressable
               style={[
                 styles.clubItem,
-                formData.clubId === null && styles.clubItemSelected
+                formData.clubId === null && styles.clubItemSelected,
+                !isDark && formData.clubId !== null && { backgroundColor: 'rgba(255,255,255,0.9)' }
               ]}
               onPress={() => setFormData({ ...formData, clubId: null })}
             >
@@ -419,13 +430,15 @@ export default function CreateMatchModal() {
                 key={court.id}
                 style={[
                   styles.clubItem,
-                  formData.clubId === court.id && styles.clubItemSelected
+                  formData.clubId === court.id && styles.clubItemSelected,
+                  !isDark && formData.clubId !== court.id && { backgroundColor: 'rgba(255,255,255,0.9)' },
                 ]}
                 onPress={() => setFormData({ ...formData, clubId: court.id })}
               >
                 <Text style={[
                   styles.clubItemName,
-                  formData.clubId === court.id && styles.clubItemTextSelected
+                  formData.clubId === court.id && styles.clubItemTextSelected,
+                  !isDark && formData.clubId !== court.id && { color: '#111111' }
                 ]}>
                   {court.name}
                 </Text>
@@ -458,7 +471,8 @@ export default function CreateMatchModal() {
             key={option.value}
             style={[
               styles.visibilityButton,
-              formData.visibility === option.value && styles.visibilityButtonSelected
+              formData.visibility === option.value && styles.visibilityButtonSelected,
+              !isDark && formData.visibility !== option.value && { backgroundColor: 'rgba(255,255,255,0.9)' }
             ]}
             onPress={() => {
               setFormData({
@@ -476,7 +490,8 @@ export default function CreateMatchModal() {
             />
             <Text style={[
               styles.visibilityText,
-              formData.visibility === option.value && styles.visibilityTextSelected
+              formData.visibility === option.value && styles.visibilityTextSelected,
+              !isDark && formData.visibility !== option.value && { color: '#333333' }
             ]}>
               {option.label}
             </Text>
@@ -501,13 +516,15 @@ export default function CreateMatchModal() {
                   key={group.id}
                   style={[
                     styles.groupItem,
-                    formData.groupId === group.id && styles.groupItemSelected
+                    formData.groupId === group.id && styles.groupItemSelected,
+                    !isDark && formData.groupId !== group.id && { backgroundColor: 'rgba(255,255,255,0.9)' },
                   ]}
                   onPress={() => setFormData({ ...formData, groupId: group.id })}
                 >
                   <Text style={[
                     styles.groupItemText,
-                    formData.groupId === group.id && styles.groupItemTextSelected
+                    formData.groupId === group.id && styles.groupItemTextSelected,
+                    !isDark && formData.groupId !== group.id && { color: '#111111' }
                   ]}>
                     {group.name}
                   </Text>
@@ -536,7 +553,7 @@ export default function CreateMatchModal() {
               <Ionicons name="calendar" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
               <Text style={styles.recapLabel}>Date</Text>
             </View>
-            <Text style={styles.recapValue}>{formatDate(formData.date)}</Text>
+            <Text style={[styles.recapValue, !isDark && { color: '#111111' }]}>{formatDate(formData.date)}</Text>
           </View>
 
           <View style={styles.recapItem}>
@@ -544,7 +561,7 @@ export default function CreateMatchModal() {
               <Ionicons name="time" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
               <Text style={styles.recapLabel}>Heure</Text>
             </View>
-            <Text style={styles.recapValue}>{formData.timeSlot}</Text>
+            <Text style={[styles.recapValue, !isDark && { color: '#111111' }]}>{formData.timeSlot}</Text>
           </View>
 
           <View style={styles.recapItem}>
@@ -552,7 +569,7 @@ export default function CreateMatchModal() {
               <Ionicons name="timer" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
               <Text style={styles.recapLabel}>Durée</Text>
             </View>
-            <Text style={styles.recapValue}>{duration?.label}</Text>
+            <Text style={[styles.recapValue, !isDark && { color: '#111111' }]}>{duration?.label}</Text>
           </View>
 
           <View style={styles.recapItem}>
@@ -560,7 +577,7 @@ export default function CreateMatchModal() {
               <Ionicons name="people" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
               <Text style={styles.recapLabel}>Format</Text>
             </View>
-            <Text style={styles.recapValue}>{formData.format} joueurs</Text>
+            <Text style={[styles.recapValue, !isDark && { color: '#111111' }]}>{formData.format} joueurs</Text>
           </View>
 
           <View style={styles.recapItem}>
@@ -568,7 +585,7 @@ export default function CreateMatchModal() {
               <Ionicons name="star" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
               <Text style={styles.recapLabel}>Niveau requis</Text>
             </View>
-            <Text style={styles.recapValue}>{formData.levelMin.toFixed(1)} - 10.0</Text>
+            <Text style={[styles.recapValue, !isDark && { color: '#111111' }]}>{formData.levelMin.toFixed(1)} - 10.0</Text>
           </View>
 
           <View style={styles.recapItem}>
@@ -576,7 +593,7 @@ export default function CreateMatchModal() {
               <Ionicons name="business" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
               <Text style={styles.recapLabel}>Club</Text>
             </View>
-            <Text style={styles.recapValue}>
+            <Text style={[styles.recapValue, !isDark && { color: '#111111' }]}>
               {selectedCourt ? `${selectedCourt.name} - ${selectedCourt.city}` : 'Non spécifié'}
             </Text>
           </View>
@@ -586,7 +603,7 @@ export default function CreateMatchModal() {
               <Ionicons name="eye" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
               <Text style={styles.recapLabel}>Visibilité</Text>
             </View>
-            <Text style={styles.recapValue}>
+            <Text style={[styles.recapValue, !isDark && { color: '#111111' }]}>
               {formData.visibility === 'tous'
                 ? 'Tous'
                 : selectedGroup
@@ -660,7 +677,7 @@ export default function CreateMatchModal() {
       {currentStep < 7 && (
         <View style={styles.footer}>
           {currentStep > 0 && (
-            <Pressable style={styles.footerButton} onPress={goToPreviousStep}>
+            <Pressable style={[styles.footerButton, !isDark && { backgroundColor: 'rgba(255,255,255,0.9)' }]} onPress={goToPreviousStep}>
               <Text style={styles.footerButtonText}>← Précédent</Text>
             </Pressable>
           )}
@@ -1151,5 +1168,6 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
 });
+
 
 

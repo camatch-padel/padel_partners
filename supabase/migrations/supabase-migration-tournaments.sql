@@ -3,7 +3,7 @@
 -- Table principale des recherches de partenaire
 CREATE TABLE IF NOT EXISTS tournaments (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  creator_id UUID NOT NULL REFERENCES "Profiles"(id) ON DELETE CASCADE,
+  creator_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   date DATE NOT NULL,
   time_slot TEXT,
   category TEXT NOT NULL CHECK (category IN ('P25', 'P50', 'P100', 'P250', 'P500', 'P1000', 'P2000')),
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS tournaments (
 CREATE TABLE IF NOT EXISTS tournament_demands (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   tournament_id UUID NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES "Profiles"(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),
   created_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(tournament_id, user_id)
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS tournament_demands (
 CREATE TABLE IF NOT EXISTS tournament_messages (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   tournament_id UUID NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES "Profiles"(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   message TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now()
 );
@@ -111,3 +111,4 @@ CREATE POLICY "Messages insertable by creator and demanders"
 
 -- Enable realtime for messages
 ALTER PUBLICATION supabase_realtime ADD TABLE tournament_messages;
+

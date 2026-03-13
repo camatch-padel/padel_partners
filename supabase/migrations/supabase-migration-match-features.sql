@@ -9,7 +9,7 @@
 CREATE TABLE IF NOT EXISTS match_requests (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES "Profiles"(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(match_id, user_id)
@@ -25,7 +25,7 @@ CREATE INDEX IF NOT EXISTS idx_match_requests_user_id ON match_requests(user_id)
 CREATE TABLE IF NOT EXISTS match_waitlist (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES "Profiles"(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
     position INTEGER NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(match_id, user_id)
@@ -41,14 +41,14 @@ CREATE TABLE IF NOT EXISTS match_results (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE UNIQUE,
     -- Équipe 1
-    team1_player1_id UUID NOT NULL REFERENCES "Profiles"(id),
+    team1_player1_id UUID NOT NULL REFERENCES profiles(id),
     team1_player1_position TEXT CHECK (team1_player1_position IN ('left', 'right')),
-    team1_player2_id UUID REFERENCES "Profiles"(id),
+    team1_player2_id UUID REFERENCES profiles(id),
     team1_player2_position TEXT CHECK (team1_player2_position IN ('left', 'right')),
     -- Équipe 2
-    team2_player1_id UUID NOT NULL REFERENCES "Profiles"(id),
+    team2_player1_id UUID NOT NULL REFERENCES profiles(id),
     team2_player1_position TEXT CHECK (team2_player1_position IN ('left', 'right')),
-    team2_player2_id UUID REFERENCES "Profiles"(id),
+    team2_player2_id UUID REFERENCES profiles(id),
     team2_player2_position TEXT CHECK (team2_player2_position IN ('left', 'right')),
     -- Scores
     sets JSONB NOT NULL DEFAULT '[]',
@@ -65,8 +65,8 @@ CREATE INDEX IF NOT EXISTS idx_match_results_match_id ON match_results(match_id)
 CREATE TABLE IF NOT EXISTS match_ratings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
-    rater_id UUID NOT NULL REFERENCES "Profiles"(id),
-    rated_id UUID NOT NULL REFERENCES "Profiles"(id),
+    rater_id UUID NOT NULL REFERENCES profiles(id),
+    rated_id UUID NOT NULL REFERENCES profiles(id),
     rating DECIMAL(3,1) NOT NULL CHECK (rating >= 1.0 AND rating <= 10.0),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(match_id, rater_id, rated_id)
@@ -81,18 +81,22 @@ CREATE INDEX IF NOT EXISTS idx_match_ratings_rated_id ON match_ratings(rated_id)
 CREATE OR REPLACE FUNCTION update_community_level()
 RETURNS TRIGGER AS $$
 BEGIN
-    UPDATE "Profiles"
-    SET community_level = (
-        SELECT ROUND(AVG(rating)::numeric, 1)
-        FROM match_ratings
-        WHERE rated_id = NEW.rated_id
-    ),
-    community_level_votes = (
-        SELECT COUNT(*)
-        FROM match_ratings
-        WHERE rated_id = NEW.rated_id
-    )
-    WHERE id = NEW.rated_id;
+    IF to_regclass('public.profiles') IS NOT NULL THEN
+        UPDATE public.profiles
+        SET community_level = (
+            SELECT ROUND(AVG(rating)::numeric, 1)
+            FROM match_ratings
+            WHERE rated_id = NEW.rated_id
+        ),
+        community_level_votes = (
+            SELECT COUNT(*)
+            FROM match_ratings
+            WHERE rated_id = NEW.rated_id
+        )
+        WHERE id = NEW.rated_id;
+    ELSE
+        RAISE EXCEPTION 'No profiles table found (expected public.profiles)';
+    END IF;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -300,3 +304,4 @@ BEGIN
     RAISE NOTICE 'Triggers update_community_level et promote_from_waitlist créés';
     RAISE NOTICE 'RLS activé avec politiques pour toutes les tables';
 END $$;
+

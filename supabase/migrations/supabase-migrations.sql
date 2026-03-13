@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS groups (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
   description TEXT,
-  creator_id UUID NOT NULL REFERENCES "Profiles"(id) ON DELETE CASCADE,
+  creator_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS groups (
 CREATE TABLE IF NOT EXISTS group_members (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   group_id UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES "Profiles"(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   joined_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(group_id, user_id)
 );
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS group_members (
 -- 4. Table matches (Parties)
 CREATE TABLE IF NOT EXISTS matches (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  creator_id UUID NOT NULL REFERENCES "Profiles"(id) ON DELETE CASCADE,
+  creator_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   date DATE NOT NULL,
   time_slot TIME NOT NULL,
   duration_minutes INTEGER NOT NULL CHECK (duration_minutes IN (60, 90, 120)),
@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS matches (
 CREATE TABLE IF NOT EXISTS match_participants (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES "Profiles"(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   joined_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(match_id, user_id)
 );
@@ -109,3 +109,4 @@ INSERT INTO courts (name, city, address) VALUES
   ('Padel Arena Lille', 'Lille', '5 Boulevard de la Liberté, 59000 Lille'),
   ('Padel Sport Nantes', 'Nantes', '30 Rue de Strasbourg, 44000 Nantes')
 ON CONFLICT DO NOTHING;
+
