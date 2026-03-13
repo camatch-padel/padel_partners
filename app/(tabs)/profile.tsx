@@ -222,8 +222,6 @@ export default function ProfileScreen() {
           lastname: lastName,
           declared_level: levelNum,
           community_level: levelNum,
-          community_level_votes: 0,
-          match_played: 0,
           court_id: courtId,
         });
 
@@ -287,19 +285,15 @@ export default function ProfileScreen() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const userId = session.user.id;
-
       // Supprimer l'avatar du storage
       if (avatarUrl) {
         const oldPath = avatarUrl.split('/').slice(-2).join('/');
         await supabase.storage.from('avatars').remove([oldPath]);
       }
 
-      // Supprimer le profil (les données liées seront supprimées par CASCADE ou RLS)
-      await supabase.from('profiles').delete().eq('id', userId);
-
-      // Supprimer le compte auth via edge function ou RPC
-      await supabase.rpc('delete_own_account');
+      // Supprimer le compte auth via Edge Function (gère profil + auth.users)
+      const { error: deleteError } = await supabase.functions.invoke('delete-account');
+      if (deleteError) throw new Error(deleteError.message);
 
       await supabase.auth.signOut();
       router.replace('/auth');
@@ -521,11 +515,11 @@ export default function ProfileScreen() {
           </Pressable>
 
           <View style={styles.legalLinks}>
-            <Pressable onPress={() => Linking.openURL('https://camatch-padel.github.io/privacy-policy.html')}>
+            <Pressable onPress={() => Linking.openURL('https://camatch-padel.github.io/padel_partners/privacy-policy.html')}>
               <Text style={styles.legalLinkText}>Politique de Confidentialité</Text>
             </Pressable>
             <Text style={styles.legalSeparator}>•</Text>
-            <Pressable onPress={() => Linking.openURL('https://camatch-padel.github.io/terms.html')}>
+            <Pressable onPress={() => Linking.openURL('https://camatch-padel.github.io/padel_partners/terms.html')}>
               <Text style={styles.legalLinkText}>CGU</Text>
             </Pressable>
           </View>
