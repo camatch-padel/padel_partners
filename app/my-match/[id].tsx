@@ -150,7 +150,7 @@ export default function MyMatchDetailScreen() {
         .from('matches')
         .select(`
           *,
-          creator:profiles!matches_creator_id_fkey(id, username, firstname, lastname, declared_level, community_level, community_level_votes, avatar_url),
+          creator:profiles!matches_creator_id_fkey(id, username, firstname, lastname, declared_level, community_level, avatar_url),
           court:courts(id, name, city, address)
         `)
         .eq('id', id)
@@ -190,7 +190,7 @@ export default function MyMatchDetailScreen() {
         .from('match_participants')
         .select(`
           user_id,
-          profile:profiles!match_participants_user_id_fkey(username, firstname, lastname, declared_level, community_level, community_level_votes, avatar_url)
+          profile:profiles!match_participants_user_id_fkey(username, firstname, lastname, declared_level, community_level, avatar_url)
         `)
         .eq('match_id', id);
 
@@ -201,7 +201,6 @@ export default function MyMatchDetailScreen() {
         lastname: p.profile?.lastname || '',
         declared_level: p.profile?.declared_level || 0,
         community_level: p.profile?.community_level || null,
-        community_level_votes: p.profile?.community_level_votes || 0,
         avatar_url: p.profile?.avatar_url || null,
       })) || [];
 
@@ -242,7 +241,7 @@ export default function MyMatchDetailScreen() {
       .from('match_requests')
       .select(`
         id, match_id, user_id, status, created_at,
-        profile:profiles!match_requests_user_id_fkey(username, firstname, lastname, declared_level, community_level, community_level_votes, avatar_url)
+        profile:profiles!match_requests_user_id_fkey(username, firstname, lastname, declared_level, community_level, avatar_url)
       `)
       .eq('match_id', id)
       .order('created_at', { ascending: true });
@@ -640,7 +639,7 @@ export default function MyMatchDetailScreen() {
           <View style={styles.infoRow}>
             <Ionicons name="star" size={20} color="#D4AF37" />
             <Text style={styles.infoLabel}>Niveau</Text>
-            <Text style={styles.infoValue}>{match.level_min.toFixed(1)} - {match.level_max.toFixed(1)}</Text>
+            <Text style={styles.infoValue}>Mini {match.level_min.toFixed(1)}</Text>
           </View>
           {match.court && (
             <View style={styles.infoRow}>

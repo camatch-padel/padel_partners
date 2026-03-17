@@ -28,11 +28,11 @@ function TabLayoutInner() {
       if (session) {
         const { data } = await supabase
           .from('profiles')
-          .select('id')
+          .select('id, username')
           .eq('id', session.user.id)
           .single();
 
-        const profileExists = !!data;
+        const profileExists = !!data?.username;
         setHasProfile(profileExists);
 
         if (!profileExists) {

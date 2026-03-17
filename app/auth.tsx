@@ -22,7 +22,11 @@ export default function AuthScreen() {
 
   const handleSignUp = async () => {
     setLoading(true);
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: 'camatch://' },
+    });
     if (error) {
       Alert.alert('Erreur', error.message);
     } else {

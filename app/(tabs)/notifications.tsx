@@ -25,6 +25,7 @@ const NOTIF_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   group_match_new: 'tennisball',
   nearby_match_new: 'location',
   group_tournament_new: 'trophy-outline',
+  group_message_new: 'chatbubble',
 };
 
 const formatRelativeTime = (dateStr: string): string => {
@@ -87,6 +88,8 @@ export default function NotificationsScreen() {
 
     if (notif.entity_type === 'match') {
       router.push(`/my-match/${notif.entity_id}` as any);
+    } else if (notif.entity_type === 'group') {
+      router.push(`/group/${notif.entity_id}` as any);
     } else {
       router.push(`/my-tournament/${notif.entity_id}` as any);
     }

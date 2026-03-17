@@ -32,7 +32,6 @@ export default function EditMatchModal() {
     duration: 90,
     format: 4,
     levelMin: 3.0,
-    levelMax: 7.0,
     clubId: null,
     visibility: 'tous',
     groupId: null,
@@ -77,7 +76,6 @@ export default function EditMatchModal() {
           duration: match.duration_minutes,
           format: match.format,
           levelMin: match.level_min,
-          levelMax: match.level_max,
           clubId: match.court_id,
           visibility: match.visibility,
           groupId: match.group_id,
@@ -184,7 +182,6 @@ export default function EditMatchModal() {
           duration_minutes: formData.duration,
           format: formData.format,
           level_min: formData.levelMin,
-          level_max: formData.levelMax,
           court_id: formData.clubId,
           visibility: formData.visibility,
           group_id: formData.groupId,
@@ -405,7 +402,7 @@ export default function EditMatchModal() {
       <Text style={styles.levelHelpText}>Indiquez le niveau minimum souhaité pour votre partie</Text>
       <LevelPyramid
         value={formData.levelMin}
-        onChange={(value) => setFormData({ ...formData, levelMin: value, levelMax: 10 })}
+        onChange={(value) => setFormData({ ...formData, levelMin: value })}
       />
     </View>
   );
@@ -608,7 +605,7 @@ export default function EditMatchModal() {
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Niveau requis</Text>
             <Text style={styles.summaryValue}>
-              {formData.levelMin.toFixed(1)} - 10.0
+              Mini {formData.levelMin.toFixed(1)}
             </Text>
           </View>
 

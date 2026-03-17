@@ -1,179 +1,46 @@
-# Migrations SQL - Linkerra
+# Migrations SQL - CaMatch
 
-## Ordre d'Exécution pour Nouveau Projet
+## Nouveau projet Supabase (production)
 
-Lors de la création d'un nouveau projet Supabase (production), exécutez les migrations dans cet ordre:
+Exécuter **uniquement** ce fichier dans le SQL Editor :
 
-### 1. Structure de Base
-```sql
--- Créer les tables principales
-supabase-migrations.sql
+```
+PRODUCTION-COMPLETE.sql
 ```
 
-### 2. Profils et Avatars
-```sql
--- Ajouter colonnes avatar, firstname, lastname à profiles
-supabase-migration-avatars.sql
-```
+Contient l'intégralité du schéma final : tables, RLS, fonctions, triggers, realtime, courts de seed.
 
-### 3. Géolocalisation
-```sql
--- Ajouter latitude/longitude aux courts
-supabase-migration-geolocation.sql
-```
+---
 
-### 4. Niveaux Min/Max
-```sql
--- Ajouter level_min et level_max aux matches
-supabase-migration-level-minmax.sql
-```
+## Patcher une base existante
 
-### 5. Données - Villes
-```sql
--- Importer toutes les villes françaises
-supabase-import-all-cities.sql
-```
+Si la base existe déjà (dev), appliquer ces fichiers dans l'ordre :
 
-### 6. Données - Noms
-```sql
--- Ajouter des noms aux profils existants (optionnel, dev only)
-supabase-add-names.sql
-```
+| Fichier | Description |
+|---|---|
+| `supabase-migration-cleanup-unused.sql` | Supprime colonnes/tables obsolètes (match_ratings, community_level_votes, match_played) |
+| `supabase-migration-remove-level-max.sql` | Supprime la colonne level_max des matches |
+| `supabase-migration-fix-handle-new-user.sql` | Corrige le trigger handle_new_user (search_path) |
+| `supabase-migration-fix-profiles-capital-p.sql` | Corrige les fonctions qui référençaient "Profiles" (P majuscule) |
+| `supabase-migration-fix-notification-functions-profiles.sql` | Corrige les fonctions de notification |
+| `supabase-migration-match-level-system.sql` | Système de niveaux (apply_match_level_deltas) |
+| `supabase-migration-match-ratings-privacy.sql` | Paramètres de confidentialité des notes |
+| `supabase-migration-group-message-notification.sql` | Notifications pour messages de groupe |
 
 ---
 
 ## Configuration Storage (Avatars)
 
-Après les migrations, configurer le storage:
+Après la migration, configurer le bucket dans le Dashboard :
 
-1. **Créer le bucket `avatars`**
-   ```sql
-   INSERT INTO storage.buckets (id, name, public)
-   VALUES ('avatars', 'avatars', true);
-   ```
-
-2. **Policy: Lecture publique**
-   ```sql
-   CREATE POLICY "Anyone authenticated can view avatars"
-   ON storage.objects
-   FOR SELECT
-   TO authenticated
-   USING (bucket_id = 'avatars');
-   ```
-
-3. **Policy: Upload pour utilisateurs authentifiés**
-   ```sql
-   CREATE POLICY "Users can upload their own avatar"
-   ON storage.objects
-   FOR INSERT
-   TO authenticated
-   WITH CHECK (
-     bucket_id = 'avatars' AND
-     (storage.foldername(name))[1] = auth.uid()::text
-   );
-   ```
-
-4. **Policy: Update pour utilisateurs authentifiés**
-   ```sql
-   CREATE POLICY "Users can update their own avatar"
-   ON storage.objects
-   FOR UPDATE
-   TO authenticated
-   USING (
-     bucket_id = 'avatars' AND
-     (storage.foldername(name))[1] = auth.uid()::text
-   );
-   ```
+1. Storage → New bucket → `avatars` → Public
+2. Les policies RLS sont déjà incluses dans PRODUCTION-COMPLETE.sql
 
 ---
 
-## Row Level Security Policies
+## Backup avant migration
 
-### profiles
-```sql
--- Lecture: tout le monde peut voir tous les profils
-CREATE POLICY "Users can view all profiles"
-ON profiles
-FOR SELECT
-TO authenticated
-USING (true);
+**Toujours faire un backup avant d'exécuter des migrations en production !**
 
--- Update: seulement son propre profil
-CREATE POLICY "Users can update own profile"
-ON profiles
-FOR UPDATE
-TO authenticated
-USING (auth.uid() = id);
-```
-
-### Matches
-```sql
--- Lecture: matches publics ou matches privés de groupes dont on est membre
-CREATE POLICY "Users can view public matches"
-ON matches
-FOR SELECT
-TO authenticated
-USING (
-  visibility = 'tous' OR
-  (visibility = 'private' AND group_id IN (
-    SELECT group_id FROM group_members WHERE user_id = auth.uid()
-  ))
-);
-
--- Insert: tout utilisateur authentifié peut créer une partie
-CREATE POLICY "Users can create matches"
-ON matches
-FOR INSERT
-TO authenticated
-WITH CHECK (auth.uid() = creator_id);
-
--- Update: seulement le créateur peut modifier sa partie
-CREATE POLICY "Creators can update their matches"
-ON matches
-FOR UPDATE
-TO authenticated
-USING (auth.uid() = creator_id);
-```
-
-### Match Participants
-```sql
--- Lecture: tout le monde peut voir les participants
-CREATE POLICY "Users can view participants"
-ON match_participants
-FOR SELECT
-TO authenticated
-USING (true);
-
--- Insert: tout utilisateur peut rejoindre une partie
-CREATE POLICY "Users can join matches"
-ON match_participants
-FOR INSERT
-TO authenticated
-WITH CHECK (auth.uid() = user_id);
-```
-
----
-
-## Fichiers de Migration
-
-- `supabase-migrations.sql` - Tables principales (courts, groups, matches, etc.)
-- `supabase-migration-avatars.sql` - Ajout colonnes avatar aux profils
-- `supabase-migration-geolocation.sql` - Ajout lat/long aux courts
-- `supabase-migration-level-minmax.sql` - Ajout level_min/max aux matches
-- `supabase-import-all-cities.sql` - Import des villes françaises
-- `supabase-add-names.sql` - Ajout noms aux profils (dev only)
-- `debug-2player-match.sql` - Requête debug pour parties 2 joueurs
-- `fix-cities-unique-constraint.sql` - Fix contrainte unique sur cities
-
----
-
-## Backup Avant Migration
-
-**TOUJOURS faire un backup avant d'exécuter des migrations en production!**
-
-1. Supabase Dashboard → Database → Backups
-2. Créer un backup manuel
-3. Attendre la confirmation
-4. Noter l'ID du backup
-5. Puis exécuter les migrations
-
+1. Supabase Dashboard → Database → Backups → Create backup
+2. Attendre la confirmation avant d'exécuter les migrations

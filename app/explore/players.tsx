@@ -22,7 +22,6 @@ interface Player {
   lastname: string;
   declared_level: number;
   community_level: number | null;
-  community_level_votes: number;
   court_name: string | null;
   court_latitude: number | null;
   court_longitude: number | null;
@@ -125,7 +124,7 @@ export default function ExplorePlayersScreen() {
       const { data, error } = await supabase
         .from('profiles')
         .select(`
-          id, firstname, lastname, declared_level, community_level, community_level_votes,
+          id, firstname, lastname, declared_level, community_level,
           court:courts(name, latitude, longitude)
         `)
         .order('declared_level', { ascending: false });
@@ -154,7 +153,6 @@ export default function ExplorePlayersScreen() {
           lastname: p.lastname || '',
           declared_level: p.declared_level || 0,
           community_level: p.community_level,
-          community_level_votes: p.community_level_votes || 0,
           court_name: p.court?.name || null,
           court_latitude: p.court?.latitude ? Number(p.court.latitude) : null,
           court_longitude: p.court?.longitude ? Number(p.court.longitude) : null,
@@ -202,7 +200,7 @@ export default function ExplorePlayersScreen() {
 
   const renderPlayer = ({ item }: { item: Player }) => {
     const estimatedLevel =
-      item.community_level != null && item.community_level_votes > 0
+      item.community_level != null
         ? item.community_level.toFixed(1)
         : '-';
 
@@ -220,10 +218,8 @@ export default function ExplorePlayersScreen() {
             styles.cellLevel,
             !isDark && { color: '#111111' },
             item.community_level != null &&
-              item.community_level_votes > 0 &&
               item.community_level < item.declared_level && { color: '#FF4444' },
             item.community_level != null &&
-              item.community_level_votes > 0 &&
               item.community_level >= item.declared_level && { color: '#44DD44' },
           ]}
         >

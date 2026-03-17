@@ -11,6 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.camatch.app",
+      "buildNumber": "1",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Nous utilisons votre position pour trouver les parties et tournois près de chez vous.",
         "NSPhotoLibraryUsageDescription": "Accédez à vos photos pour choisir une photo de profil."

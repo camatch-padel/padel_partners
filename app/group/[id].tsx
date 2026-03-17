@@ -170,7 +170,7 @@ export default function GroupDetailsScreen() {
           format,
           level_min,
           duration_minutes,
-          creator:profiles!matches_creator_id_fkey(id, username, firstname, lastname, avatar_url, declared_level, community_level, community_level_votes),
+          creator:profiles!matches_creator_id_fkey(id, username, firstname, lastname, avatar_url, declared_level, community_level),
           court:courts(name, city)
         `)
         .eq('group_id', id)
@@ -189,7 +189,7 @@ export default function GroupDetailsScreen() {
         .select(`
           match_id,
           user_id,
-          profile:profiles!match_participants_user_id_fkey(username, firstname, lastname, avatar_url, declared_level, community_level, community_level_votes)
+          profile:profiles!match_participants_user_id_fkey(username, firstname, lastname, avatar_url, declared_level, community_level)
         `)
         .in('match_id', matchIds);
 
@@ -235,7 +235,6 @@ export default function GroupDetailsScreen() {
             avatar_url: p.profile?.avatar_url || null,
             declared_level: p.profile?.declared_level || 0,
             community_level: p.profile?.community_level || null,
-            community_level_votes: p.profile?.community_level_votes || 0,
           }));
 
         return {
@@ -267,7 +266,7 @@ export default function GroupDetailsScreen() {
           age_category,
           min_ranking,
           player_position,
-          creator:profiles!tournaments_creator_id_fkey(id, username, firstname, lastname, avatar_url, declared_level, community_level, community_level_votes),
+          creator:profiles!tournaments_creator_id_fkey(id, username, firstname, lastname, avatar_url, declared_level, community_level),
           court:courts(name, city)
         `)
         .eq('group_id', id)

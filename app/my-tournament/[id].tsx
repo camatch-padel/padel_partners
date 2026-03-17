@@ -79,7 +79,7 @@ export default function MyTournamentDetailScreen() {
         .from('tournaments')
         .select(`
           *,
-          creator:profiles!tournaments_creator_id_fkey(id, username, firstname, lastname, declared_level, community_level, community_level_votes, avatar_url),
+          creator:profiles!tournaments_creator_id_fkey(id, username, firstname, lastname, declared_level, community_level, avatar_url),
           court:courts(id, name, city, address)
         `)
         .eq('id', id)
@@ -96,7 +96,6 @@ export default function MyTournamentDetailScreen() {
           lastname: 'Inconnu',
           declared_level: 0,
           community_level: null,
-          community_level_votes: 0,
           avatar_url: null,
         },
         court: tournamentData.court || null,
@@ -117,7 +116,7 @@ export default function MyTournamentDetailScreen() {
       .from('tournament_demands')
       .select(`
         id, tournament_id, user_id, status, created_at,
-        profile:profiles!tournament_demands_user_id_fkey(username, firstname, lastname, declared_level, community_level, community_level_votes, avatar_url)
+        profile:profiles!tournament_demands_user_id_fkey(username, firstname, lastname, declared_level, community_level, avatar_url)
       `)
       .eq('tournament_id', id)
       .order('created_at', { ascending: true });
@@ -293,8 +292,8 @@ export default function MyTournamentDetailScreen() {
     return `${days[date.getDay()]} ${date.getDate()} ${months[date.getMonth()]}`;
   };
 
-  const renderLevelBadge = (declared: number, community: number | null, votes: number) => {
-    if (!community || votes === 0) {
+  const renderLevelBadge = (declared: number, community: number | null) => {
+    if (community == null) {
       return <Text style={styles.levelText}>{declared.toFixed(1)}</Text>;
     }
     const isLower = community < declared;
@@ -412,8 +411,7 @@ export default function MyTournamentDetailScreen() {
             </Text>
             {renderLevelBadge(
               tournament.creator.declared_level,
-              tournament.creator.community_level,
-              tournament.creator.community_level_votes
+              tournament.creator.community_level
             )}
           </View>
           <View style={styles.creatorTag}>
@@ -545,8 +543,7 @@ export default function MyTournamentDetailScreen() {
                 </Text>
                 <Text style={styles.requestLevel}>
                   {demand.profile?.declared_level.toFixed(1)}
-                  {demand.profile?.community_level_votes > 0 &&
-                  demand.profile?.community_level != null
+                  {demand.profile?.community_level != null
                     ? ` / ${demand.profile.community_level.toFixed(1)}`
                     : ''}
                 </Text>

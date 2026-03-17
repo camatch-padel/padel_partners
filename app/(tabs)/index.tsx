@@ -26,7 +26,6 @@ interface MyMatch {
   time_slot: string;
   format: number;
   level_min: number;
-  level_max: number;
   status: string;
   creator_id: string;
   participants_count: number;

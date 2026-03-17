@@ -15,10 +15,19 @@
       "channel": "preview"
     },
     "production": {
-      "channel": "production"
+      "channel": "production",
+      "env": {
+        "APP_VARIANT": "production"
+      }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleId": "TON_APPLE_ID@email.com",
+        "ascAppId": "TON_APP_STORE_CONNECT_APP_ID",
+        "appleTeamId": "TON_TEAM_ID"
+      }
+    }
   }
 }

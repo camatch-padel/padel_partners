@@ -35,7 +35,7 @@ export default function TournamentExploreScreen() {
   // Filtres
   const [maxDistance, setMaxDistance] = useState(50);
   const [sliderDistance, setSliderDistance] = useState(50);
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
   const [eventTypeFilter, setEventTypeFilter] = useState<string>('all');
   const [minRankingFilter, setMinRankingFilter] = useState(0);
   const [minRankingText, setMinRankingText] = useState('');
@@ -138,7 +138,7 @@ export default function TournamentExploreScreen() {
         .select(
           `
           *,
-          creator:profiles!tournaments_creator_id_fkey(id, username, firstname, lastname, declared_level, community_level, community_level_votes, avatar_url),
+          creator:profiles!tournaments_creator_id_fkey(id, username, firstname, lastname, declared_level, community_level, avatar_url),
           court:courts(id, name, city, address, latitude, longitude)
         `
         )
@@ -146,8 +146,8 @@ export default function TournamentExploreScreen() {
         .gte('date', new Date().toISOString().split('T')[0])
         .order('date', { ascending: true });
 
-      if (categoryFilter !== 'all') {
-        query = query.eq('category', categoryFilter);
+      if (categoryFilter.length > 0) {
+        query = query.in('category', categoryFilter);
       }
       if (eventTypeFilter !== 'all') {
         query = query.eq('event_type', eventTypeFilter);
@@ -223,7 +223,6 @@ export default function TournamentExploreScreen() {
               lastname: 'Inconnu',
               declared_level: 0,
               community_level: null,
-              community_level_votes: 0,
               avatar_url: null,
             },
             court: tournament.court || null,
@@ -318,10 +317,9 @@ export default function TournamentExploreScreen() {
 
   const renderLevelText = (
     declared: number,
-    communityLevel: number | null,
-    votes: number
+    communityLevel: number | null
   ) => {
-    if (!votes || votes === 0 || communityLevel == null) {
+    if (communityLevel == null) {
       return <Text style={styles.avatarLevel}>{declared.toFixed(1)}</Text>;
     }
     const isLower = communityLevel < declared;
@@ -383,8 +381,7 @@ export default function TournamentExploreScreen() {
                   </Text>
                   {renderLevelText(
                     item.creator.declared_level,
-                    item.creator.community_level,
-                    item.creator.community_level_votes
+                    item.creator.community_level
                   )}
                 </View>
                 <View style={styles.creatorDetails}>
@@ -544,40 +541,47 @@ export default function TournamentExploreScreen() {
           <Pressable
             style={[
               styles.filterButton,
-              categoryFilter === 'all' && styles.filterButtonActive,
-              !isDark && categoryFilter !== 'all' && { backgroundColor: 'rgba(255,255,255,0.9)' },
+              categoryFilter.length === 0 && styles.filterButtonActive,
+              !isDark && categoryFilter.length !== 0 && { backgroundColor: 'rgba(255,255,255,0.9)' },
             ]}
-            onPress={() => setCategoryFilter('all')}
+            onPress={() => setCategoryFilter([])}
           >
             <Text
               style={[
                 styles.filterButtonText,
-                categoryFilter === 'all' && styles.filterButtonTextActive,
+                categoryFilter.length === 0 && styles.filterButtonTextActive,
               ]}
             >
               Toutes
             </Text>
           </Pressable>
-          {TOURNAMENT_CATEGORIES.map((cat) => (
-            <Pressable
-              key={cat.value}
-              style={[
-                styles.filterButton,
-                categoryFilter === cat.value && styles.filterButtonActive,
-                !isDark && categoryFilter !== cat.value && { backgroundColor: 'rgba(255,255,255,0.9)' },
-              ]}
-              onPress={() => setCategoryFilter(cat.value)}
-            >
-              <Text
+          {TOURNAMENT_CATEGORIES.map((cat) => {
+            const isSelected = categoryFilter.includes(cat.value);
+            return (
+              <Pressable
+                key={cat.value}
                 style={[
-                  styles.filterButtonText,
-                  categoryFilter === cat.value && styles.filterButtonTextActive,
+                  styles.filterButton,
+                  isSelected && styles.filterButtonActive,
+                  !isDark && !isSelected && { backgroundColor: 'rgba(255,255,255,0.9)' },
                 ]}
+                onPress={() => {
+                  setCategoryFilter((prev) =>
+                    isSelected ? prev.filter((c) => c !== cat.value) : [...prev, cat.value]
+                  );
+                }}
               >
-                {cat.label}
-              </Text>
-            </Pressable>
-          ))}
+                <Text
+                  style={[
+                    styles.filterButtonText,
+                    isSelected && styles.filterButtonTextActive,
+                  ]}
+                >
+                  {cat.label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
       </View>
 

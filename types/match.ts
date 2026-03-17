@@ -6,7 +6,6 @@ export interface MatchFormData {
   duration: number; // 60, 90, ou 120 (minutes)
   format: 2 | 4; // 2 ou 4 joueurs
   levelMin: number; // Niveau minimum requis (1.0 à 10.0)
-  levelMax: number; // Niveau maximum requis (1.0 à 10.0)
   clubId: string | null; // UUID du terrain, optionnel
   visibility: 'tous' | 'private'; // Visibilité de la partie
   groupId: string | null; // UUID du groupe si visibilité private
@@ -20,7 +19,6 @@ export interface Match {
   duration_minutes: number;
   format: 2 | 4;
   level_min: number; // Niveau minimum requis (1.0 à 10.0)
-  level_max: number; // Niveau maximum requis (1.0 à 10.0)
   court_id: string | null;
   visibility: 'tous' | 'private';
   group_id: string | null;
@@ -66,7 +64,6 @@ export interface ParticipantProfile {
   lastname: string;
   declared_level: number;
   community_level: number | null;
-  community_level_votes: number;
   avatar_url: string | null;
 }
 
@@ -78,7 +75,6 @@ export interface MatchWithDetails extends Match {
     lastname: string;
     declared_level: number;
     community_level: number | null;
-    community_level_votes: number;
     avatar_url: string | null;
   };
   court: Court | null;
@@ -99,7 +95,6 @@ export interface MatchRequest {
     lastname: string;
     declared_level: number;
     community_level: number | null;
-    community_level_votes: number;
     avatar_url: string | null;
   };
 }

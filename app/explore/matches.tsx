@@ -210,7 +210,7 @@ export default function ExploreMatchesScreen() {
         .from('matches')
         .select(`
           *,
-          creator:profiles!matches_creator_id_fkey(id, username, firstname, lastname, declared_level, community_level, community_level_votes, avatar_url),
+          creator:profiles!matches_creator_id_fkey(id, username, firstname, lastname, declared_level, community_level, avatar_url),
           court:courts(id, name, city, address, latitude, longitude)
         `)
         .gte('level_min', levelMin)
@@ -240,7 +240,7 @@ export default function ExploreMatchesScreen() {
         .select(`
           match_id,
           user_id,
-          profile:profiles!match_participants_user_id_fkey(username, firstname, lastname, avatar_url, declared_level, community_level, community_level_votes)
+          profile:profiles!match_participants_user_id_fkey(username, firstname, lastname, avatar_url, declared_level, community_level)
         `)
         .in('match_id', matchIds);
 
@@ -288,7 +288,6 @@ export default function ExploreMatchesScreen() {
             lastname: p.profile?.lastname || '',
             declared_level: p.profile?.declared_level || 0,
             community_level: p.profile?.community_level || null,
-            community_level_votes: p.profile?.community_level_votes || 0,
             avatar_url: p.profile?.avatar_url || null,
           })) || [];
 
@@ -313,7 +312,6 @@ export default function ExploreMatchesScreen() {
             lastname: 'Inconnu',
             declared_level: 0,
             community_level: null,
-            community_level_votes: 0,
             avatar_url: null
           },
           court: match.court || null,
@@ -385,16 +383,19 @@ export default function ExploreMatchesScreen() {
 
       const { data: userProfile } = await supabase
         .from('profiles')
-        .select('declared_level')
+        .select('declared_level, community_level')
         .eq('id', session.user.id)
         .single();
 
-      const userLevel = userProfile?.declared_level || 0;
+      const userDeclared = userProfile?.declared_level ?? 0;
+      const userCommunity: number | null = userProfile?.community_level ?? null;
+      const canJoin = userDeclared >= match.level_min &&
+        (userCommunity === null || userCommunity >= match.level_min);
 
-      if (userLevel < match.level_min || userLevel > match.level_max) {
+      if (!canJoin) {
         Alert.alert(
           'Niveau requis',
-          `Vous n'avez pas le niveau requis pour cette partie (${match.level_min.toFixed(1)} - ${match.level_max.toFixed(1)}). Souhaitez-vous faire une demande au créateur ?`,
+          `Votre niveau est inférieur au minimum requis (${match.level_min.toFixed(1)}) pour cette partie. Souhaitez-vous faire une demande au créateur ?`,
           [
             { text: 'Non', style: 'cancel' },
             {
@@ -504,8 +505,8 @@ export default function ExploreMatchesScreen() {
     });
   };
 
-  const renderLevelText = (declared: number, communityLevel: number | null, votes: number) => {
-    if (!votes || votes === 0 || communityLevel == null) {
+  const renderLevelText = (declared: number, communityLevel: number | null) => {
+    if (communityLevel == null) {
       return <Text style={styles.avatarLevel}>{declared.toFixed(1)}</Text>;
     }
     const isLower = communityLevel < declared;
@@ -604,7 +605,7 @@ export default function ExploreMatchesScreen() {
                     size={60}
                   />
                   <Text style={styles.avatarName} numberOfLines={1}>{item.creator.firstname}</Text>
-                  {renderLevelText(item.creator.declared_level, item.creator.community_level, item.creator.community_level_votes)}
+                  {renderLevelText(item.creator.declared_level, item.creator.community_level)}
                 </View>
 
                 {/* Autres participants */}
@@ -617,7 +618,7 @@ export default function ExploreMatchesScreen() {
                       size={60}
                     />
                     <Text style={styles.avatarName} numberOfLines={1}>{participant.firstname}</Text>
-                    {renderLevelText(participant.declared_level, participant.community_level, participant.community_level_votes)}
+                    {renderLevelText(participant.declared_level, participant.community_level)}
                   </View>
                 ))}
 

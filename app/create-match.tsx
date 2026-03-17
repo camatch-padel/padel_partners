@@ -34,7 +34,6 @@ export default function CreateMatchModal() {
     duration: 90, // 1h30 par défaut
     format: 4, // 4 joueurs par défaut
     levelMin: 3.0, // Niveau minimum par défaut
-    levelMax: 10.0, // Toujours 10
     clubId: null,
     visibility: 'tous',
     groupId: null,
@@ -160,7 +159,6 @@ export default function CreateMatchModal() {
           duration_minutes: formData.duration,
           format: formData.format,
           level_min: formData.levelMin,
-          level_max: formData.levelMax,
           court_id: formData.clubId,
           visibility: formData.visibility,
           group_id: formData.groupId,
@@ -369,7 +367,7 @@ export default function CreateMatchModal() {
       <Text style={styles.levelHelpText}>Indiquez le niveau minimum souhaité pour votre partie</Text>
       <LevelPyramid
         value={formData.levelMin}
-        onChange={(value) => setFormData({ ...formData, levelMin: value, levelMax: 10 })}
+        onChange={(value) => setFormData({ ...formData, levelMin: value })}
       />
     </View>
   );
@@ -585,7 +583,7 @@ export default function CreateMatchModal() {
               <Ionicons name="star" size={20} color="#D4AF37" style={{ marginRight: 8 }} />
               <Text style={styles.recapLabel}>Niveau requis</Text>
             </View>
-            <Text style={[styles.recapValue, !isDark && { color: '#111111' }]}>{formData.levelMin.toFixed(1)} - 10.0</Text>
+            <Text style={[styles.recapValue, !isDark && { color: '#111111' }]}>Mini {formData.levelMin.toFixed(1)}</Text>
           </View>
 
           <View style={styles.recapItem}>

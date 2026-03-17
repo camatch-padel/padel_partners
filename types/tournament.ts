@@ -41,7 +41,7 @@ export interface TournamentWithDetails extends Tournament {
     lastname: string;
     declared_level: number;
     community_level: number | null;
-    community_level_votes: number;
+
     avatar_url: string | null;
   };
   court: Court | null;
@@ -65,7 +65,7 @@ export interface TournamentDemand {
     lastname: string;
     declared_level: number;
     community_level: number | null;
-    community_level_votes: number;
+
     avatar_url: string | null;
   };
 }

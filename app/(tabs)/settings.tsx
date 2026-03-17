@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Switch,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import type { NotificationType } from '@/types/notification';
@@ -21,6 +20,7 @@ const NOTIF_LABELS: Record<NotificationType, string> = {
   group_match_new: 'Nouveau match dans mon groupe',
   nearby_match_new: 'Match à proximité',
   group_tournament_new: 'Nouveau tournoi dans mon groupe',
+  group_message_new: 'Nouveau message dans mon groupe',
 };
 
 const NOTIF_ICONS: Record<NotificationType, keyof typeof Ionicons.glyphMap> = {
@@ -32,46 +32,17 @@ const NOTIF_ICONS: Record<NotificationType, keyof typeof Ionicons.glyphMap> = {
   group_match_new: 'tennisball',
   nearby_match_new: 'location',
   group_tournament_new: 'trophy-outline',
+  group_message_new: 'chatbubble',
 };
 
 export default function SettingsScreen() {
-  const { theme, setTheme, backgroundImage } = useTheme();
+  const { backgroundImage } = useTheme();
   const { prefs, setPref, setAllPrefs, allEnabled } = useNotificationPrefs();
-
-  const isDark = theme === 'dark';
 
   return (
     <ImageBackground source={backgroundImage} style={styles.container} resizeMode="cover">
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.pageTitle}>Paramètres</Text>
-
-        {/* === THEME === */}
-        <Text style={styles.sectionTitle}>Thème</Text>
-        <View style={styles.card}>
-          <TouchableOpacity
-            style={[styles.themeOption, isDark && styles.themeOptionActive]}
-            onPress={() => setTheme('dark')}
-          >
-            <Ionicons name="moon" size={22} color={isDark ? '#000' : '#D4AF37'} />
-            <Text style={[styles.themeOptionText, isDark && styles.themeOptionTextActive]}>
-              Sombre
-            </Text>
-            {isDark && <Ionicons name="checkmark" size={18} color="#000" style={styles.checkmark} />}
-          </TouchableOpacity>
-
-          <View style={styles.themeDivider} />
-
-          <TouchableOpacity
-            style={[styles.themeOption, !isDark && styles.themeOptionActive]}
-            onPress={() => setTheme('light')}
-          >
-            <Ionicons name="sunny" size={22} color={!isDark ? '#000' : '#D4AF37'} />
-            <Text style={[styles.themeOptionText, !isDark && styles.themeOptionTextActive]}>
-              Clair
-            </Text>
-            {!isDark && <Ionicons name="checkmark" size={18} color="#000" style={styles.checkmark} />}
-          </TouchableOpacity>
-        </View>
 
         {/* === NOTIFICATIONS === */}
         <Text style={styles.sectionTitle}>Notifications</Text>
