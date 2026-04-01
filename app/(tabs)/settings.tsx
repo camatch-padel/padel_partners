@@ -3,6 +3,8 @@ import { useNotificationPrefs } from '@/contexts/NotificationPrefsContext';
 import { Ionicons } from '@expo/vector-icons';
 import {
   ImageBackground,
+  Linking,
+  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
@@ -82,6 +84,32 @@ export default function SettingsScreen() {
               {index < arr.length - 1 && <View style={styles.rowDivider} />}
             </View>
           ))}
+        </View>
+
+        {/* === CONTACT === */}
+        <Text style={styles.sectionTitle}>Contact</Text>
+        <View style={styles.card}>
+          <Pressable
+            style={styles.row}
+            onPress={() => Linking.openURL('https://camatch-padel.github.io/support.html')}
+          >
+            <View style={styles.rowLeft}>
+              <Ionicons name="help-circle" size={20} color="#D4AF37" />
+              <Text style={styles.rowLabel}>Support</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#888" />
+          </Pressable>
+          <View style={styles.rowDivider} />
+          <Pressable
+            style={styles.row}
+            onPress={() => Linking.openURL('mailto:camatch.padel.support@gmail.com')}
+          >
+            <View style={styles.rowLeft}>
+              <Ionicons name="mail" size={20} color="#D4AF37" />
+              <Text style={styles.rowLabel}>Nous contacter</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#888" />
+          </Pressable>
         </View>
       </ScrollView>
     </ImageBackground>

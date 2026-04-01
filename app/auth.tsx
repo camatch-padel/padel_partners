@@ -122,7 +122,7 @@ export default function AuthScreen() {
                 En créant un compte, vous acceptez notre{' '}
                 <Text
                   style={styles.legalNoticeLink}
-                  onPress={() => Linking.openURL('https://camatch-padel.github.io/padel_partners/privacy-policy.html')}
+                  onPress={() => Linking.openURL('https://camatch-padel.github.io/privacy-policy.html')}
                 >
                   Politique de confidentialité
                 </Text>

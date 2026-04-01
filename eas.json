@@ -17,16 +17,18 @@
     "production": {
       "channel": "production",
       "env": {
-        "APP_VARIANT": "production"
+        "APP_VARIANT": "production",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://ecqqxrfhcwngxpuivkxi.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_AatTh_NHk1cIQOwkHbUqyQ_xoTBKOha"
       }
     }
   },
   "submit": {
     "production": {
       "ios": {
-        "appleId": "TON_APPLE_ID@email.com",
-        "ascAppId": "TON_APP_STORE_CONNECT_APP_ID",
-        "appleTeamId": "TON_TEAM_ID"
+        "appleId": "f.leporquier@gmail.com",
+        "ascAppId": "6760892567",
+        "appleTeamId": "9Z4XTS887U"
       }
     }
   }
