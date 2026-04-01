@@ -23,6 +23,7 @@ const NOTIF_LABELS: Record<NotificationType, string> = {
   nearby_match_new: 'Match à proximité',
   group_tournament_new: 'Nouveau tournoi dans mon groupe',
   group_message_new: 'Nouveau message dans mon groupe',
+  match_request_new: 'Demande de participation à mon match',
 };
 
 const NOTIF_ICONS: Record<NotificationType, keyof typeof Ionicons.glyphMap> = {
@@ -35,6 +36,7 @@ const NOTIF_ICONS: Record<NotificationType, keyof typeof Ionicons.glyphMap> = {
   nearby_match_new: 'location',
   group_tournament_new: 'trophy-outline',
   group_message_new: 'chatbubble',
+  match_request_new: 'hand-left',
 };
 
 export default function SettingsScreen() {

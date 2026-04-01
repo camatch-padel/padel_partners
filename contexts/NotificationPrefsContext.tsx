@@ -14,6 +14,7 @@ const ALL_TYPES: NotificationType[] = [
   'nearby_match_new',
   'group_tournament_new',
   'group_message_new',
+  'match_request_new',
 ];
 
 const DEFAULT_PREFS: NotificationPrefs = Object.fromEntries(

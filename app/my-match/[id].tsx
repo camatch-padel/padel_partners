@@ -541,6 +541,8 @@ export default function MyMatchDetailScreen() {
 
       let savedResultId: string;
       if (result) {
+        // Inverser les anciens deltas avant de modifier le résultat
+        await supabase.rpc('reverse_match_level_deltas', { p_match_result_id: result.id });
         await supabase.from('match_results').update(resultData).eq('id', result.id);
         savedResultId = result.id;
       } else {

@@ -1,5 +1,6 @@
 import { supabase } from '@/constants/supabase';
 import Logo from '@/components/Logo';
+import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import {
   Alert,
@@ -19,6 +20,7 @@ export default function AuthScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSignUp = async () => {
     setLoading(true);
@@ -30,7 +32,12 @@ export default function AuthScreen() {
     if (error) {
       Alert.alert('Erreur', error.message);
     } else {
-      Alert.alert('Succes', 'Compte cree ! Verifiez vos emails.');
+      Alert.alert(
+        'Compte créé !',
+        'Un email de confirmation a été envoyé à ' + email + '. Vérifiez votre boîte mail (et les spams) puis connectez-vous.'
+      );
+      setEmail('');
+      setPassword('');
       setIsSignUp(false);
     }
     setLoading(false);
@@ -98,14 +105,22 @@ export default function AuthScreen() {
 
           <View style={styles.formGroup}>
             <Text style={styles.label}>Mot de passe</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="��������"
-              placeholderTextColor="rgba(255, 255, 255, 0.4)"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="••••••••"
+                placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+              />
+              <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
+                <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={20} color="rgba(255,255,255,0.5)" />
+              </Pressable>
+            </View>
+            {isSignUp && (
+              <Text style={styles.passwordHint}>Minimum 6 caractères</Text>
+            )}
           </View>
 
           <Pressable
@@ -243,6 +258,28 @@ const styles = StyleSheet.create({
     color: '#0066FF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 10,
+  },
+  passwordInput: {
+    flex: 1,
+    padding: 14,
+    color: 'white',
+    fontSize: 16,
+  },
+  eyeButton: {
+    padding: 14,
+  },
+  passwordHint: {
+    color: 'rgba(255, 255, 255, 0.4)',
+    fontSize: 12,
+    marginTop: 6,
   },
   legalNotice: {
     marginTop: 16,

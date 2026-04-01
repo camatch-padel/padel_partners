@@ -7,7 +7,8 @@ export type NotificationType =
   | 'group_match_new'
   | 'nearby_match_new'
   | 'group_tournament_new'
-  | 'group_message_new';
+  | 'group_message_new'
+  | 'match_request_new';
 
 export interface Notification {
   id: string;
